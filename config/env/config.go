@@ -21,9 +21,16 @@ type (
 		DBName     string `env:"DB_NAME"`
 	}
 
+	Redis struct {
+		Address  string `env:"REDIS_ADDRESS"`
+		Password string `env:"REDIS_PASSWORD"`
+		DB       string `env:"REDIS_DB"`
+	}
+
 	Config struct {
 		Server   Server
 		Database Database
+		Redis Redis
 	}
 )
 
@@ -59,6 +66,10 @@ func LoadNative() ([]string, error) {
 	lookupEnv("DB_PORT", &Cfg.Database.DBPort, &missing)
 	lookupEnv("DB_NAME", &Cfg.Database.DBName, &missing)
 	lookupEnv("DB_PASSWORD", &Cfg.Database.DBPassword, &missing)
+
+	lookupEnv("REDIS_ADDRESS", &Cfg.Redis.Address, &missing)
+	Cfg.Redis.Password, _ = os.LookupEnv("REDIS_PASSWORD")
+	Cfg.Redis.DB, _ = os.LookupEnv("REDIS_DB")
 
 	return missing, nil
 }
