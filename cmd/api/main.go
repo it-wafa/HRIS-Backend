@@ -11,7 +11,9 @@ import (
 	"hris-backend/config/db"
 	"hris-backend/config/env"
 	logger "hris-backend/config/log"
+	redisSetup "hris-backend/config/redis"
 	"hris-backend/interface/http/router"
+	"hris-backend/internal/redis"
 	"hris-backend/internal/utils"
 	"hris-backend/internal/utils/data"
 )
@@ -51,6 +53,19 @@ func shutdownHTTP(app interface{ ShutdownWithTimeout(time.Duration) error }, err
 	}
 }
 
+func shutdownRedis(redisInstance redis.Redis, errors map[string]any) {
+	if redisInstance == nil {
+		return
+	}
+	if err := redisInstance.Close(); err != nil {
+		logger.Error(data.LogRedisCloseFailed, map[string]any{
+			"service": data.RedisService,
+			"error":   err.Error(),
+		})
+		errors["cache_error"] = true
+	}
+}
+
 // shutdownInfra closes queue and database connections
 func shutdownInfra(dbInstance db.DatabaseClient, errors map[string]any) {
 	if err := dbInstance.Close(); err != nil {
@@ -71,9 +86,28 @@ func main() {
 		"duration": utils.Ms(time.Since(startTime)),
 	})
 
+	// ── Redis ──────────────────────────────────────────────────
+	startTime = time.Now()
+	redisClient, err := redisSetup.NewRedisClient(redisSetup.RedisConfig{
+		Address:  env.Cfg.Redis.Address,
+		Password: env.Cfg.Redis.Password,
+		DB:       redisSetup.ParseRedisDB(env.Cfg.Redis.DB),
+	})
+	if err != nil {
+		logger.Fatal(data.LogRedisSetupFailed, map[string]any{
+			"service": data.RedisService,
+			"error":   err.Error(),
+		})
+	}
+	redisInstance := redis.NewRedisInstance(redisClient)
+	logger.Info(data.LogRedisSetupSuccess, map[string]any{
+		"service":  data.RedisService,
+		"duration": utils.Ms(time.Since(startTime)),
+	})
+
 	// ── HTTP Server ────────────────────────────────────────────
 	startTime = time.Now()
-	httpServer := router.SetupHTTPServer(dbInstance)
+	httpServer := router.SetupHTTPServer(dbInstance, redisInstance)
 	if httpServer != nil {
 		go func() {
 			if err := httpServer.Listen(":" + env.Cfg.Server.HTTPPort); err != nil && err != http.ErrServerClosed {

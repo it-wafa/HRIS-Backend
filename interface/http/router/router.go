@@ -3,13 +3,14 @@ package router
 import (
 	"hris-backend/config/db"
 	"hris-backend/interface/http/middleware"
+	"hris-backend/internal/redis"
 	"hris-backend/internal/struct/dto"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/recover"
 )
 
-func SetupHTTPServer(dbInstance db.DatabaseClient) *fiber.App {
+func SetupHTTPServer(dbInstance db.DatabaseClient, redisInstance redis.Redis) *fiber.App {
 	app := fiber.New(fiber.Config{
 		AppName:      "WAFA HRIS",
 		ServerHeader: "WAFA HRIS",
