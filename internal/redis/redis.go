@@ -26,6 +26,7 @@ type Redis interface {
 	MSet(ctx context.Context, data map[string]any) error
 	Scan(ctx context.Context, match string, count int64) ([]string, error)
 	Keys(ctx context.Context, pattern string) ([]string, error)
+	TTL(ctx context.Context, key string) (time.Duration, error)
 	Close() error
 }
 
@@ -212,6 +213,15 @@ func (r *redisClient) Keys(ctx context.Context, pattern string) ([]string, error
 	}
 
 	return keys, nil
+}
+
+func (r *redisClient) TTL(ctx context.Context, key string) (time.Duration, error) {
+	ttl, err := r.client.TTL(ctx, key).Result()
+	if err != nil {
+		return 0, fmt.Errorf("redis: %w", err)
+	}
+
+	return ttl, nil
 }
 
 func (r *redisClient) Close() error {

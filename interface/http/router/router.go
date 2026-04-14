@@ -33,7 +33,7 @@ func SetupHTTPServer(dbInstance db.DatabaseClient, redisInstance redis.Redis) *f
 	app.Use(middleware.RequestIDMiddleware())
 	app.Use(middleware.CORSMiddleware())
 	app.Use(middleware.LoggerMiddleware())
-	// app.Use(middleware.RateLimiterMiddleware(redisClient))
+	app.Use(middleware.RateLimiterMiddleware(redisInstance))
 
 	// Health check
 	app.Get("/test", func(c *fiber.Ctx) error {
