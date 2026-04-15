@@ -191,3 +191,23 @@ func DelToken(ctx context.Context, rdb Redis, key string) error {
 
 	return nil
 }
+
+func SetRefreshToken(ctx context.Context, rdb Redis, refreshToken string, t *dto.Token) error {
+	jt, err := json.Marshal(t)
+	if err != nil {
+		return err
+	}
+	return rdb.Set(ctx, "refresh:"+refreshToken, string(jt), TokenAuthRefreshExp)
+}
+
+func GetRefreshToken(ctx context.Context, rdb Redis, refreshToken string) (*dto.Token, error) {
+	jt, err := rdb.Get(ctx, "refresh:"+refreshToken)
+	if err != nil {
+		return nil, fmt.Errorf("refresh token not found or expired")
+	}
+	var token dto.Token
+	if err := json.Unmarshal([]byte(jt), &token); err != nil {
+		return nil, err
+	}
+	return &token, nil
+}

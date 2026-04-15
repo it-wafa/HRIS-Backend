@@ -17,7 +17,7 @@ import (
 
 type AuthService interface {
 	Login(ctx context.Context, req dto.LoginReq) (dto.LoginRes, error)
-	Refresh(ctx context.Context, req dto.LoginRes) (dto.LoginRes, error)
+	Refresh(ctx context.Context, refreshToken string) (dto.LoginRes, error)
 }
 
 type authService struct {
@@ -63,7 +63,7 @@ func (s *authService) Login(ctx context.Context, req dto.LoginReq) (dto.LoginRes
 	nonce := utils.GenerateRandomString(redis.TokenLen)
 	refresh := utils.GenerateRandomString(redis.TokenLen)
 
-	token, err := redis.SetSession(ctx, s.redis, &dto.Token{
+	tokenPayload := &dto.Token{
 		Account:     employee,
 		Permissions: result.Permissions,
 		Email:       account.Email,
@@ -74,9 +74,15 @@ func (s *authService) Login(ctx context.Context, req dto.LoginReq) (dto.LoginRes
 		Nonce:       nonce,
 		Refresh:     refresh,
 		Audience:    env.Cfg.Server.ClientURL,
-	}, time.Hour*24)
+	}
+
+	token, err := redis.SetSession(ctx, s.redis, tokenPayload, redis.TokenAuthSessionExp)
 	if err != nil {
 		return result, fmt.Errorf("failed to set session: %w", err)
+	}
+
+	if err := redis.SetRefreshToken(ctx, s.redis, refresh, tokenPayload); err != nil {
+		return result, fmt.Errorf("failed to set refresh session: %w", err)
 	}
 
 	result.Token = token
@@ -91,29 +97,42 @@ func (s *authService) Login(ctx context.Context, req dto.LoginReq) (dto.LoginRes
 	return result, nil
 }
 
-func (s *authService) Refresh(ctx context.Context, user dto.LoginRes) (dto.LoginRes, error) {
-	nonce := utils.GenerateRandomString(redis.TokenLen)
-	refresh := utils.GenerateRandomString(redis.TokenLen)
+func (s *authService) Refresh(ctx context.Context, refreshToken string) (dto.LoginRes, error) {
+	tokenData, err := redis.GetRefreshToken(ctx, s.redis, refreshToken)
+	if err != nil {
+		return dto.LoginRes{}, fmt.Errorf("invalid or expired refresh token")
+	}
 
-	token, err := redis.SetSession(ctx, s.redis, &dto.Token{
-		Account:     user.Account,
-		Permissions: user.Permissions,
-		Email:       user.Account.Email,
+	nonce := utils.GenerateRandomString(redis.TokenLen)
+	newRefresh := utils.GenerateRandomString(redis.TokenLen)
+
+	newTokenPayload := &dto.Token{
+		Account:     tokenData.Account,
+		Permissions: tokenData.Permissions,
+		Email:       tokenData.Account.Email,
 		IssuedAt:    fmt.Sprintf("%d", time.Now().Unix()),
 		Expires:     fmt.Sprintf("%d", time.Now().Add(redis.TokenAuthSessionExp).Unix()),
 		Issuer:      "hris-backend",
-		Subject:     fmt.Sprintf("%d", user.Account.AccountID),
+		Subject:     fmt.Sprintf("%d", tokenData.Account.AccountID),
 		Nonce:       nonce,
-		Refresh:     refresh,
+		Refresh:     newRefresh,
 		Audience:    env.Cfg.Server.ClientURL,
-	}, time.Hour*24)
+	}
+
+	newAccessToken, err := redis.SetSession(ctx, s.redis, newTokenPayload, redis.TokenAuthSessionExp)
 	if err != nil {
 		return dto.LoginRes{}, fmt.Errorf("failed to set session: %w", err)
 	}
 
-	s.redis.Del(ctx, user.Token)
-	user.Token = token
-	user.Refresh = refresh
+	if err := redis.SetRefreshToken(ctx, s.redis, newRefresh, newTokenPayload); err != nil {
+		return dto.LoginRes{}, fmt.Errorf("failed to set refresh session: %w", err)
+	}
+	s.redis.Del(ctx, "refresh:"+refreshToken)
 
-	return user, nil
+	return dto.LoginRes{
+		Token:       newAccessToken,
+		Refresh:     newRefresh,
+		Account:     tokenData.Account,
+		Permissions: tokenData.Permissions,
+	}, nil
 }

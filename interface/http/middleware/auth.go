@@ -45,7 +45,7 @@ func AuthMiddleware(rdb redis.Redis) fiber.Handler {
 			return c.Status(fiber.StatusUnauthorized).JSON(dto.APIResponse{
 				Status:     false,
 				StatusCode: 401,
-				Message:    "Invalid or expired token",
+				Message:    "token_expired",
 			})
 		}
 
@@ -55,7 +55,7 @@ func AuthMiddleware(rdb redis.Redis) fiber.Handler {
 				return c.Status(fiber.StatusUnauthorized).JSON(dto.APIResponse{
 					Status:     false,
 					StatusCode: 401,
-					Message:    "Invalid or expired token",
+					Message:    "token_expired",
 				})
 			}
 			return c.Status(fiber.StatusUnauthorized).JSON(dto.APIResponse{

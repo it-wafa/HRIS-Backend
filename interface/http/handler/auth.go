@@ -46,17 +46,18 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 }
 
 func (h *AuthHandler) Refresh(c *fiber.Ctx) error {
-	accessToken := c.Locals("token").(string)
-	refreshToken := c.Locals("refresh_token").(string)
-	account := c.Locals("account").(dto.GetEmployeeByIDResponse)
-	permissions := c.Locals("permissions").([]string)
+	var req struct {
+		RefreshToken string `json:"refresh_token"`
+	}
+	if err := c.BodyParser(&req); err != nil || req.RefreshToken == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(dto.APIResponse{
+			Status:     false,
+			StatusCode: fiber.StatusBadRequest,
+			Message:    "refresh_token is required",
+		})
+	}
 
-	result, err := h.service.Refresh(c.Context(), dto.LoginRes{
-		Account:     account,
-		Permissions: permissions,
-		Token:       accessToken,
-		Refresh:     refreshToken,
-	})
+	result, err := h.service.Refresh(c.Context(), req.RefreshToken)
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(dto.APIResponse{
 			Status:     false,
@@ -65,11 +66,10 @@ func (h *AuthHandler) Refresh(c *fiber.Ctx) error {
 		})
 	}
 
-	c.JSON(dto.APIResponse{
+	return c.JSON(dto.APIResponse{
 		Status:     true,
 		StatusCode: fiber.StatusOK,
 		Message:    "Refresh token successful",
 		Data:       result,
 	})
-	return nil
 }
