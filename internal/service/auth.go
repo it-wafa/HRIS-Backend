@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"hris-backend/config/env"
+	"hris-backend/config/log"
 	"hris-backend/internal/redis"
 	"hris-backend/internal/repository"
 	"hris-backend/internal/struct/dto"
@@ -32,6 +33,8 @@ func NewAuthService(repo repository.AuthRepository, redis redis.Redis) AuthServi
 }
 
 func (s *authService) Login(ctx context.Context, req dto.LoginReq) (dto.LoginRes, error) {
+	timeNow := time.Now()
+
 	account, err := s.repo.GetAccountByEmail(ctx, nil, req.Email)
 	if err != nil {
 		return dto.LoginRes{}, err
@@ -78,6 +81,12 @@ func (s *authService) Login(ctx context.Context, req dto.LoginReq) (dto.LoginRes
 
 	result.Token = token
 	result.Refresh = refresh
+
+	if err := s.repo.UpdateAccountLastLogin(ctx, nil, timeNow, account.ID); err != nil {
+		log.Error(fmt.Sprintf("failed to update last login: %v", err))
+	} else {
+		result.Account.LastLoginAt = &timeNow
+	}
 
 	return result, nil
 }

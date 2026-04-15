@@ -76,6 +76,6 @@ func ParseAuto(s string) (time.Time, error) {
 }
 
 func GenerateEmail(name string) string {
-	name = strings.Split(name, " ")[0]
+	name = strings.ToLower(strings.Split(name, " ")[0])
 	return fmt.Sprintf("%s@wafa.id", name)
 }

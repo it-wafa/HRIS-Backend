@@ -16,13 +16,13 @@ func EmployeeRoutes(app *fiber.App, db *gorm.DB) {
 	txManager := repository.NewTxManager(db)
 	h := handler.NewEmployeeHandler(service.NewEmployeeService(repo, txManager))
 
-	employee := app.Group("/employee")
+	employees := app.Group("/employees")
 	{
-		employee.Get("/metadata", h.Metadata)
-		employee.Get("/", h.List, middleware.RBACMiddleware(data.PERM_EmployeeRead))
-		employee.Get("/:id", h.Detail, middleware.RBACMiddleware(data.PERM_EmployeeRead))
-		employee.Post("/", h.Create, middleware.RBACMiddleware(data.PERM_EmployeeCreate))
-		employee.Put("/:id", h.Update, middleware.RBACMiddleware(data.PERM_EmployeeUpdate))
-		employee.Delete("/:id", h.Delete, middleware.RBACMiddleware(data.PERM_EmployeeDelete))
+		employees.Get("/metadata", h.Metadata)
+		employees.Get("/", middleware.RBACMiddleware(data.PERM_EmployeeRead), h.List)
+		employees.Get("/:id", middleware.RBACMiddleware(data.PERM_EmployeeRead), h.Detail)
+		employees.Post("/", middleware.RBACMiddleware(data.PERM_EmployeeCreate), h.Create)
+		employees.Put("/:id", middleware.RBACMiddleware(data.PERM_EmployeeUpdate), h.Update)
+		employees.Delete("/:id", middleware.RBACMiddleware(data.PERM_EmployeeDelete), h.Delete)
 	}
 }

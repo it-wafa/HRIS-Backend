@@ -82,7 +82,7 @@ func (h *EmployeeHandler) Create(c *fiber.Ctx) error {
 		})
 	}
 
-	result, err := h.service.CreateEmployee(c.Context(), input)
+	newEmployee, newCredentials, err := h.service.CreateEmployee(c.Context(), input)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(dto.APIResponse{
 			Status:     false,
@@ -95,7 +95,10 @@ func (h *EmployeeHandler) Create(c *fiber.Ctx) error {
 		Status:     true,
 		StatusCode: 201,
 		Message:    "Employee created",
-		Data:       result,
+		Data: map[string]any{
+			"employee":    newEmployee,
+			"credentials": newCredentials,
+		},
 	})
 }
 

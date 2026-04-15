@@ -37,8 +37,8 @@ type Employee struct {
 }
 
 type EmployeeRequest struct {
-	EmployeeNumber string  `json:"employee_number"`
 	FullName       string  `json:"full_name"`
+	EmployeeNumber string  `json:"employee_number"`
 	NIK            *string `json:"nik"`
 	NPWP           *string `json:"npwp"`
 	KKNumber       *string `json:"kk_number"`
@@ -75,4 +75,9 @@ type EmployeeMetadata struct {
 	MaritalStatusMeta []Meta `json:"marital_status_meta"`
 	BloodTypeMeta     []Meta `json:"blood_type_meta"`
 	StatusMeta        []Meta `json:"status_meta"`
+}
+
+type NewEmployeeCred struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
 }

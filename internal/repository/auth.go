@@ -3,9 +3,10 @@ package repository
 import (
 	"context"
 	"errors"
+	"time"
 
-	"hris-backend/config/log"
 	"hris-backend/internal/struct/dto"
+	"hris-backend/internal/struct/model"
 
 	"gorm.io/gorm"
 )
@@ -13,6 +14,7 @@ import (
 type AuthRepository interface {
 	GetAccountByEmail(ctx context.Context, tx Transaction, email string) (dto.GetAccountByEmailResponse, error)
 	GetEmployeeByID(ctx context.Context, tx Transaction, id uint) (dto.GetEmployeeByIDResponse, error)
+	UpdateAccountLastLogin(ctx context.Context, tx Transaction, time time.Time, id uint) error
 }
 
 type authRepository struct {
@@ -52,7 +54,7 @@ func (r *authRepository) GetAccountByEmail(ctx context.Context, tx Transaction, 
 			a.is_active,
 			a.last_login_at
 		FROM accounts a
-		WHERE a.email = $1
+		WHERE a.email = $1 AND a.deleted_at IS NULL
 	`, email).Scan(&account).Error
 	if err != nil {
 		return account, err
@@ -68,7 +70,7 @@ func (r *authRepository) GetEmployeeByID(ctx context.Context, tx Transaction, id
 	}
 
 	var user dto.GetEmployeeByIDResponse
-	
+
 	err = db.Raw(`
         SELECT 
             a.id AS account_id,
@@ -84,15 +86,15 @@ func (r *authRepository) GetEmployeeByID(ctx context.Context, tx Transaction, id
             COALESCE(e.job_positions_id, 0) AS job_positions_id,
             COALESCE(r.name, '') AS role_name,
             COALESCE(
-                JSONB_AGG(DISTINCT p.code ORDER BY p.code ASC), 
+                JSONB_AGG(DISTINCT p.code ORDER BY p.code ASC) FILTER (WHERE p.code IS NOT NULL), 
                 '[]'::jsonb
             ) AS permissions
         FROM accounts a
         JOIN roles r ON a.role_id = r.id
         JOIN employees e ON a.employee_id = e.id
-        JOIN role_permissions rp ON a.role_id = rp.role_id
-        JOIN permissions p ON rp.permission_code = p.code
-        WHERE a.id = $1
+        LEFT JOIN role_permissions rp ON a.role_id = rp.role_id
+        LEFT JOIN permissions p ON rp.permission_code = p.code
+        WHERE a.id = $1 AND a.deleted_at IS NULL AND e.deleted_at IS NULL AND r.deleted_at IS NULL
         GROUP BY 
             a.id, a.email, a.is_active, a.last_login_at,
             e.id, e.employee_number, e.full_name, e.photo_url, 
@@ -100,9 +102,21 @@ func (r *authRepository) GetEmployeeByID(ctx context.Context, tx Transaction, id
             r.id, r.name
     `, id).Scan(&user).Error
 	if err != nil {
-		log.Error("Error fetching employee by ID:", map[string]any{"error": err})
 		return user, err
 	}
 
 	return user, nil
+}
+
+func (r *authRepository) UpdateAccountLastLogin(ctx context.Context, tx Transaction, time time.Time, id uint) error {
+	db, err := r.getDB(ctx, tx)
+	if err != nil {
+		return err
+	}
+
+	if err := db.Model(&model.Account{}).Where("id = ?", id).Update("last_login_at", time).Error; err != nil {
+		return err
+	}
+
+	return nil
 }

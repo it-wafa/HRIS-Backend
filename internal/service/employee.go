@@ -15,7 +15,7 @@ type EmployeeService interface {
 	GetMetadata(ctx context.Context) (dto.EmployeeMetadata, error)
 	GetAllEmployees(ctx context.Context) ([]dto.Employee, error)
 	GetEmployeeByID(ctx context.Context, employeeID string) (dto.Employee, error)
-	CreateEmployee(ctx context.Context, req dto.CreateEmployeeRequest) (dto.Employee, error)
+	CreateEmployee(ctx context.Context, req dto.CreateEmployeeRequest) (dto.Employee, dto.NewEmployeeCred, error)
 	UpdateEmployee(ctx context.Context, id string, req dto.UpdateEmployeeRequest) (dto.Employee, error)
 	DeleteEmployee(ctx context.Context, employeeID string) error
 }
@@ -81,34 +81,35 @@ func (s *employeeService) GetEmployeeByID(ctx context.Context, employeeID string
 	return employee, nil
 }
 
-func (s *employeeService) CreateEmployee(ctx context.Context, req dto.CreateEmployeeRequest) (dto.Employee, error) {
+func (s *employeeService) CreateEmployee(ctx context.Context, req dto.CreateEmployeeRequest) (dto.Employee, dto.NewEmployeeCred, error) {
 	employee, err := s.validateEmployeePayload(req.EmployeeRequest)
 	if err != nil {
-		return dto.Employee{}, fmt.Errorf("validate employee payload: %w", err)
+		return dto.Employee{}, dto.NewEmployeeCred{}, fmt.Errorf("validate employee payload: %w", err)
 	}
-	account, err := s.validateAccountPayload(employee, req.EmployeeRequest)
+	account, newCredentials, err := s.validateAccountPayload(employee, req.EmployeeRequest)
 	if err != nil {
-		return dto.Employee{}, fmt.Errorf("validate account payload: %w", err)
+		return dto.Employee{}, dto.NewEmployeeCred{}, fmt.Errorf("validate account payload: %w", err)
 	}
 
 	tx, err := s.txManager.Begin(ctx)
 	if err != nil {
-		return dto.Employee{}, fmt.Errorf("create employee: begin transaction: %w", err)
+		return dto.Employee{}, dto.NewEmployeeCred{}, fmt.Errorf("create employee: begin transaction: %w", err)
 	}
 	defer tx.Rollback()
 
 	createdEmployee, err := s.repo.CreateEmployee(ctx, tx, employee)
 	if err != nil {
-		return dto.Employee{}, fmt.Errorf("create employee: create employee: %w", err)
+		return dto.Employee{}, dto.NewEmployeeCred{}, fmt.Errorf("create employee: create employee: %w", err)
 	}
 
+	account.EmployeeID = createdEmployee.ID
 	createdAccount, err := s.repo.CreateAccount(ctx, tx, account)
 	if err != nil {
-		return dto.Employee{}, fmt.Errorf("create employee: create account: %w", err)
+		return dto.Employee{}, dto.NewEmployeeCred{}, fmt.Errorf("create employee: create account: %w", err)
 	}
 
 	if err := tx.Commit(); err != nil {
-		return dto.Employee{}, fmt.Errorf("create employee: commit transaction: %w", err)
+		return dto.Employee{}, dto.NewEmployeeCred{}, fmt.Errorf("create employee: commit transaction: %w", err)
 	}
 
 	return dto.Employee{
@@ -132,7 +133,7 @@ func (s *employeeService) CreateEmployee(ctx context.Context, req dto.CreateEmpl
 		DepartmentID:   createdEmployee.DepartmentID,
 		RoleID:         &createdAccount.RoleID,
 		JobPositionsID: createdEmployee.JobPositionsID,
-	}, nil
+	}, newCredentials, nil
 }
 
 func (s *employeeService) UpdateEmployee(ctx context.Context, id string, req dto.UpdateEmployeeRequest) (dto.Employee, error) {
@@ -280,22 +281,26 @@ func (s *employeeService) validateEmployeePayload(req dto.EmployeeRequest) (mode
 	}, nil
 }
 
-func (s *employeeService) validateAccountPayload(employee model.Employee, req dto.EmployeeRequest) (model.Account, error) {
+func (s *employeeService) validateAccountPayload(employee model.Employee, req dto.EmployeeRequest) (model.Account, dto.NewEmployeeCred, error) {
 	if req.RoleID == nil {
-		return model.Account{}, fmt.Errorf("role ID is required")
+		return model.Account{}, dto.NewEmployeeCred{}, fmt.Errorf("role ID is required")
 	}
 
-	randompassword := utils.GenerateRandomString(10)
-	hashpassword, err := utils.PasswordHashing(randompassword)
+	email := utils.GenerateEmail(employee.FullName)
+	randomPassword := utils.GenerateRandomString(10)
+	hashPassword, err := utils.PasswordHashing(randomPassword)
 	if err != nil {
-		return model.Account{}, fmt.Errorf("failed to generate password: %w", err)
+		return model.Account{}, dto.NewEmployeeCred{}, fmt.Errorf("failed to generate password: %w", err)
 	}
 
 	return model.Account{
-		EmployeeID: employee.ID,
-		RoleID:     *req.RoleID,
-		Email:      utils.GenerateEmail(employee.FullName),
-		Password:   hashpassword,
-		IsActive:   true,
-	}, nil
+			EmployeeID: employee.ID,
+			RoleID:     *req.RoleID,
+			Email:      email,
+			Password:   hashPassword,
+			IsActive:   true,
+		}, dto.NewEmployeeCred{
+			Email:    email,
+			Password: randomPassword,
+		}, nil
 }

@@ -59,7 +59,7 @@ func (r *employeeRepository) GetBranchMetadata(ctx context.Context, tx Transacti
 	var branchMeta []dto.Meta
 	if err := db.Raw(`
 		SELECT
-			id,
+			id::TEXT AS id,
 			name
 		FROM branches
 		WHERE deleted_at IS NULL
@@ -79,7 +79,7 @@ func (r *employeeRepository) GetDepartmentMetadata(ctx context.Context, tx Trans
 	var departmentMeta []dto.Meta
 	if err := db.Raw(`
 		SELECT
-			id,
+			id::TEXT AS id,
 			name
 		FROM departments
 		WHERE deleted_at IS NULL
@@ -99,7 +99,7 @@ func (r *employeeRepository) GetRoleMetadata(ctx context.Context, tx Transaction
 	var roleMeta []dto.Meta
 	if err := db.Raw(`
 		SELECT
-			id,
+			id::TEXT AS id,
 			name
 		FROM roles
 		WHERE deleted_at IS NULL
@@ -119,7 +119,7 @@ func (r *employeeRepository) GetJobPositionMetadata(ctx context.Context, tx Tran
 	var jobPositionMeta []dto.Meta
 	if err := db.Raw(`
 		SELECT
-			id,
+			id::TEXT AS id,
 			title as name
 		FROM job_positions
 		WHERE deleted_at IS NULL
