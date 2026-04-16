@@ -18,6 +18,7 @@ func RoleRoutes(app *fiber.App, db *gorm.DB) {
 
 	roles := app.Group("/roles")
 	{
+		roles.Get("/metadata", h.Metadata)
 		roles.Get("/", middleware.RBACMiddleware(data.PERM_RoleRead), h.List)
 		roles.Get("/:id", middleware.RBACMiddleware(data.PERM_RoleRead), h.Detail)
 		roles.Post("/", middleware.RBACMiddleware(data.PERM_RoleCreate), h.Create)

@@ -15,6 +15,17 @@ func NewRoleHandler(service service.RoleService) *RoleHandler {
 	return &RoleHandler{service: service}
 }
 
+func (h *RoleHandler) Metadata(c *fiber.Ctx) error {
+	result := h.service.GetMetadata(c.Context())
+
+	return c.JSON(dto.APIResponse{
+		Status:     true,
+		StatusCode: 200,
+		Message:    "Role metadata",
+		Data:       result,
+	})
+}
+
 func (h *RoleHandler) List(c *fiber.Ctx) error {
 	result, err := h.service.GetAllRoles(c.Context())
 	if err != nil {

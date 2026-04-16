@@ -7,9 +7,11 @@ import (
 	"hris-backend/internal/repository"
 	"hris-backend/internal/struct/dto"
 	"hris-backend/internal/struct/model"
+	"hris-backend/internal/utils/data"
 )
 
 type RoleService interface {
+	GetMetadata(ctx context.Context) dto.RoleMetadata
 	GetAllRoles(ctx context.Context) ([]dto.RoleResponse, error)
 	GetRoleByID(ctx context.Context, id string) (dto.RoleDetailResponse, error)
 	CreateRole(ctx context.Context, req dto.CreateRoleRequest) (dto.RoleResponse, error)
@@ -26,6 +28,13 @@ type roleService struct {
 
 func NewRoleService(repo repository.RoleRepository, txManager repository.TxManager) RoleService {
 	return &roleService{repo: repo, txManager: txManager}
+}
+
+func (s *roleService) GetMetadata(ctx context.Context) dto.RoleMetadata {
+	return dto.RoleMetadata{
+		ModuleMeta: data.PermissionModuleMeta,
+		ActionMeta: data.PermissionActionMeta,
+	}
 }
 
 func (s *roleService) GetAllRoles(ctx context.Context) ([]dto.RoleResponse, error) {

@@ -38,3 +38,8 @@ type UpdateRoleRequest struct {
 type UpdateRolePermissionsRequest struct {
 	PermissionCodes []string `json:"permission_codes"`
 }
+
+type RoleMetadata struct {
+	ModuleMeta []Meta `json:"module_meta"`
+	ActionMeta []Meta `json:"action_meta"`
+}

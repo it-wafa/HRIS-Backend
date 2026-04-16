@@ -107,4 +107,57 @@ var (
 		{ID: "days", Name: "Hari"},
 		{ID: "hours", Name: "Jam"},
 	}
+
+	HolidayTypeMeta = []dto.Meta{
+		{ID: "public", Name: "Libur Umum"},
+		{ID: "national", Name: "Nasional"},
+		{ID: "joint", Name: "Cuti Bersama"},
+		{ID: "observance", Name: "Peringatan"},
+		{ID: "company", Name: "Perusahaan"},
+	}
+
+	ContractTypeMeta = []dto.Meta{
+		{ID: "pkwt", Name: "PKWT"},
+		{ID: "pkwtt", Name: "PKWTT"},
+		{ID: "probation", Name: "Probation"},
+		{ID: "intern", Name: "Intern"},
+		{ID: "part_time", Name: "Part Time"},
+		{ID: "freelance", Name: "Freelance"},
+	}
+
+	ContactTypeMeta = []dto.Meta{
+		{ID: "phone", Name: "Telepon"},
+		{ID: "email", Name: "Email"},
+		{ID: "address", Name: "Alamat"},
+	}
+
+	DayOfWeekMeta = []dto.Meta{
+		{ID: "monday", Name: "Senin"},
+		{ID: "tuesday", Name: "Selasa"},
+		{ID: "wednesday", Name: "Rabu"},
+		{ID: "thursday", Name: "Kamis"},
+		{ID: "friday", Name: "Jum'at"},
+		{ID: "saturday", Name: "Sabtu"},
+		{ID: "sunday", Name: "Minggu"},
+	}
+
+	PermissionModuleMeta = []dto.Meta{
+		{ID: "dashboard", Name: "Dashboard"},
+		{ID: "employee", Name: "Pegawai"},
+		{ID: "branch", Name: "Cabang"},
+		{ID: "position", Name: "Jabatan"},
+		{ID: "role", Name: "Role"},
+		{ID: "attendance", Name: "Kehadiran"},
+		{ID: "leave", Name: "Cuti"},
+		{ID: "report", Name: "Laporan"},
+	}
+
+	PermissionActionMeta = []dto.Meta{
+		{ID: "module", Name: "Module"},
+		{ID: "view", Name: "Lihat"},
+		{ID: "create", Name: "Tambah"},
+		{ID: "edit", Name: "Edit"},
+		{ID: "delete", Name: "Hapus"},
+		{ID: "approve", Name: "Approve"},
+	}
 )

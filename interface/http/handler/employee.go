@@ -147,3 +147,31 @@ func (h *EmployeeHandler) Delete(c *fiber.Ctx) error {
 		Message:    "Employee deleted",
 	})
 }
+
+// Contacts
+func (h *EmployeeHandler) ListContacts(c *fiber.Ctx) error {
+	return c.JSON(dto.APIResponse{Status: true, StatusCode: 200, Message: "Contact list", Data: []any{}})
+}
+func (h *EmployeeHandler) CreateContact(c *fiber.Ctx) error {
+	return c.JSON(dto.APIResponse{Status: true, StatusCode: 201, Message: "Contact created", Data: map[string]any{}})
+}
+func (h *EmployeeHandler) UpdateContact(c *fiber.Ctx) error {
+	return c.JSON(dto.APIResponse{Status: true, StatusCode: 200, Message: "Contact updated", Data: map[string]any{}})
+}
+func (h *EmployeeHandler) DeleteContact(c *fiber.Ctx) error {
+	return c.JSON(dto.APIResponse{Status: true, StatusCode: 200, Message: "Contact deleted"})
+}
+
+// Contracts
+func (h *EmployeeHandler) ListContracts(c *fiber.Ctx) error {
+	return c.JSON(dto.APIResponse{Status: true, StatusCode: 200, Message: "Contract list", Data: []any{}})
+}
+func (h *EmployeeHandler) CreateContract(c *fiber.Ctx) error {
+	return c.JSON(dto.APIResponse{Status: true, StatusCode: 201, Message: "Contract created", Data: map[string]any{}})
+}
+func (h *EmployeeHandler) UpdateContract(c *fiber.Ctx) error {
+	return c.JSON(dto.APIResponse{Status: true, StatusCode: 200, Message: "Contract updated", Data: map[string]any{}})
+}
+func (h *EmployeeHandler) DeleteContract(c *fiber.Ctx) error {
+	return c.JSON(dto.APIResponse{Status: true, StatusCode: 200, Message: "Contract deleted"})
+}

@@ -71,6 +71,7 @@ type EmployeeMetadata struct {
 	DepartmentMeta    []Meta `json:"department_meta"`
 	RoleMeta          []Meta `json:"role_meta"`
 	JobPositionMeta   []Meta `json:"job_position_meta"`
+	GenderMeta        []Meta `json:"gender_meta"`
 	ReligionMeta      []Meta `json:"religion_meta"`
 	MaritalStatusMeta []Meta `json:"marital_status_meta"`
 	BloodTypeMeta     []Meta `json:"blood_type_meta"`
@@ -80,4 +81,30 @@ type EmployeeMetadata struct {
 type NewEmployeeCred struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
+}
+
+type EmployeeContactResponse struct {
+	ID           uint       `json:"id"`
+	EmployeeID   uint       `json:"employee_id"`
+	ContactType  string     `json:"contact_type"`
+	ContactValue string     `json:"contact_value"`
+	ContactLabel *string    `json:"contact_label"`
+	IsPrimary    bool       `json:"is_primary"`
+	CreatedAt    time.Time  `json:"created_at"`
+	UpdatedAt    time.Time  `json:"updated_at"`
+	DeletedAt    *time.Time `json:"deleted_at"`
+}
+
+type CreateContactRequest struct {
+	ContactType  string  `json:"contact_type"`
+	ContactValue string  `json:"contact_value"`
+	ContactLabel *string `json:"contact_label"`
+	IsPrimary    *bool   `json:"is_primary"`
+}
+
+type UpdateContactRequest struct {
+	ContactType  *string `json:"contact_type"`
+	ContactValue *string `json:"contact_value"`
+	ContactLabel *string `json:"contact_label"`
+	IsPrimary    *bool   `json:"is_primary"`
 }

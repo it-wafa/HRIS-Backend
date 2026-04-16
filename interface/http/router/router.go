@@ -54,6 +54,8 @@ func SetupHTTPServer(dbInstance db.DatabaseClient, redisInstance redis.Redis) *f
 	route.PositionRoutes(app, dbInstance.GetDB())
 	route.RoleRoutes(app, dbInstance.GetDB())
 	route.LeaveTypeRoutes(app, dbInstance.GetDB())
+	route.ShiftRoutes(app, dbInstance.GetDB())
+	route.HolidayRoutes(app, dbInstance.GetDB())
 
 	return app
 }

@@ -58,6 +58,7 @@ func (s *employeeService) GetMetadata(ctx context.Context) (dto.EmployeeMetadata
 		DepartmentMeta:    departmentMeta,
 		RoleMeta:          roleMeta,
 		JobPositionMeta:   jobPositionMeta,
+		GenderMeta:        data.GenderMeta,
 		ReligionMeta:      data.ReligionMeta,
 		MaritalStatusMeta: data.MaritalStatusMeta,
 		BloodTypeMeta:     data.BloodTypeMeta,
