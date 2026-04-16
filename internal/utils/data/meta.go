@@ -93,4 +93,18 @@ var (
 			Name: "Tidak Aktif",
 		},
 	}
+
+	LeaveCategoryMeta = []dto.Meta{
+		{ID: "annual", Name: "Cuti Tahunan"},
+		{ID: "sick", Name: "Sakit"},
+		{ID: "maternity", Name: "Cuti Melahirkan"},
+		{ID: "paternity", Name: "Cuti Ayah"},
+		{ID: "unpaid", Name: "Tanpa Gaji"},
+		{ID: "other", Name: "Lainnya"},
+	}
+
+	DurationUnitMeta = []dto.Meta{
+		{ID: "days", Name: "Hari"},
+		{ID: "hours", Name: "Jam"},
+	}
 )

@@ -49,6 +49,11 @@ func SetupHTTPServer(dbInstance db.DatabaseClient, redisInstance redis.Redis) *f
 
 	app.Use(middleware.AuthMiddleware(redisInstance))
 	route.EmployeeRoutes(app, dbInstance.GetDB())
+	route.BranchRoutes(app, dbInstance.GetDB())
+	route.DepartmentRoutes(app, dbInstance.GetDB())
+	route.PositionRoutes(app, dbInstance.GetDB())
+	route.RoleRoutes(app, dbInstance.GetDB())
+	route.LeaveTypeRoutes(app, dbInstance.GetDB())
 
 	return app
 }
