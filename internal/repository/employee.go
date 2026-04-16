@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"hris-backend/internal/struct/dto"
 	"hris-backend/internal/struct/model"
@@ -25,6 +26,7 @@ type EmployeeRepository interface {
 	GetAccountByEmployeeID(ctx context.Context, tx Transaction, employeeID string) (model.Account, error)
 	CreateAccount(ctx context.Context, tx Transaction, req model.Account) (model.Account, error)
 	UpdateAccount(ctx context.Context, tx Transaction, req model.Account) (model.Account, error)
+	UpdateAccountPassword(ctx context.Context, tx Transaction, employeeID string, hashedPassword string) error
 	DeleteAccount(ctx context.Context, tx Transaction, accountID string) error
 }
 
@@ -319,5 +321,21 @@ func (r *employeeRepository) DeleteAccount(ctx context.Context, tx Transaction, 
 		return err
 	}
 
+	return nil
+}
+
+func (r *employeeRepository) UpdateAccountPassword(ctx context.Context, tx Transaction, employeeID string, hashedPassword string) error {
+	db, err := r.getDB(ctx, tx)
+	if err != nil {
+		return err
+	}
+
+	result := db.Model(&model.Account{}).Where("employee_id = ? AND deleted_at IS NULL", employeeID).Update("password", hashedPassword)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("account not found for employee %s", employeeID)
+	}
 	return nil
 }

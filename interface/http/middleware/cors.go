@@ -16,7 +16,7 @@ func CORSMiddleware() fiber.Handler {
 		if isAllowedOrigin(origin) {
 			c.Set("Access-Control-Allow-Origin", origin)
 			c.Set("Access-Control-Allow-Credentials", "true")
-			c.Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+			c.Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
 			c.Set("Access-Control-Allow-Headers", "Content-Type, Authorization, Accept, Origin, X-Request-ID")
 			c.Set("Access-Control-Expose-Headers", "Content-Length, Content-Type, X-Request-ID")
 			c.Set("Access-Control-Max-Age", "43200")

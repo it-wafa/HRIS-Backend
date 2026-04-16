@@ -132,20 +132,29 @@ func (h *EmployeeHandler) Update(c *fiber.Ctx) error {
 
 func (h *EmployeeHandler) Delete(c *fiber.Ctx) error {
 	id := c.Params("id")
-	err := h.service.DeleteEmployee(c.Context(), id)
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(dto.APIResponse{
-			Status:     false,
-			StatusCode: fiber.StatusInternalServerError,
-			Message:    err.Error(),
-		})
+	if err := h.service.DeleteEmployee(c.Context(), id); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(dto.APIResponse{Status: false, StatusCode: 500, Message: err.Error()})
 	}
 
-	return c.JSON(dto.APIResponse{
-		Status:     true,
-		StatusCode: 200,
-		Message:    "Employee deleted",
-	})
+	return c.JSON(dto.APIResponse{Status: true, StatusCode: 200, Message: "Employee successfully deleted"})
+}
+
+func (h *EmployeeHandler) ResetPassword(c *fiber.Ctx) error {
+	id := c.Params("id")
+	if id == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(dto.APIResponse{Status: false, StatusCode: 400, Message: "Employee ID is required"})
+	}
+
+	var req dto.ResetPasswordRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(dto.APIResponse{Status: false, StatusCode: 400, Message: "Invalid Request Payload"})
+	}
+
+	if err := h.service.ResetPassword(c.Context(), id, req); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(dto.APIResponse{Status: false, StatusCode: 500, Message: err.Error()})
+	}
+
+	return c.JSON(dto.APIResponse{Status: true, StatusCode: 200, Message: "Password successfully reset"})
 }
 
 // Contacts

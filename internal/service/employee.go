@@ -18,6 +18,7 @@ type EmployeeService interface {
 	CreateEmployee(ctx context.Context, req dto.CreateEmployeeRequest) (dto.Employee, dto.NewEmployeeCred, error)
 	UpdateEmployee(ctx context.Context, id string, req dto.UpdateEmployeeRequest) (dto.Employee, error)
 	DeleteEmployee(ctx context.Context, employeeID string) error
+	ResetPassword(ctx context.Context, employeeID string, req dto.ResetPasswordRequest) error
 }
 
 type employeeService struct {
@@ -304,4 +305,27 @@ func (s *employeeService) validateAccountPayload(employee model.Employee, req dt
 			Email:    email,
 			Password: randomPassword,
 		}, nil
+}
+
+func (s *employeeService) ResetPassword(ctx context.Context, employeeID string, req dto.ResetPasswordRequest) error {
+	if req.NewPassword == "" {
+		return fmt.Errorf("new password is required")
+	}
+	if req.NewPassword != req.ConfirmPassword {
+		return fmt.Errorf("passwords do not match")
+	}
+	if len(req.NewPassword) < 6 {
+		return fmt.Errorf("password must be at least 6 characters")
+	}
+
+	hashed, err := utils.PasswordHashing(req.NewPassword)
+	if err != nil {
+		return fmt.Errorf("failed to hash password: %w", err)
+	}
+
+	if err := s.repo.UpdateAccountPassword(ctx, nil, employeeID, hashed); err != nil {
+		return fmt.Errorf("reset password: %w", err)
+	}
+
+	return nil
 }

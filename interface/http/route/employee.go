@@ -24,6 +24,7 @@ func EmployeeRoutes(app *fiber.App, db *gorm.DB) {
 		employees.Post("/", middleware.RBACMiddleware(data.PERM_EmployeeCreate), h.Create)
 		employees.Put("/:id", middleware.RBACMiddleware(data.PERM_EmployeeUpdate), h.Update)
 		employees.Delete("/:id", middleware.RBACMiddleware(data.PERM_EmployeeDelete), h.Delete)
+		employees.Patch("/:id/reset-password", middleware.RBACMiddleware(data.PERM_EmployeeUpdate), h.ResetPassword)
 
 		// Contacts
 		employees.Get("/:id/contacts", middleware.RBACMiddleware(data.PERM_EmployeeRead), h.ListContacts)

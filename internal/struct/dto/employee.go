@@ -108,3 +108,8 @@ type UpdateContactRequest struct {
 	ContactLabel *string `json:"contact_label"`
 	IsPrimary    *bool   `json:"is_primary"`
 }
+
+type ResetPasswordRequest struct {
+	NewPassword     string `json:"new_password"`
+	ConfirmPassword string `json:"confirm_password"`
+}

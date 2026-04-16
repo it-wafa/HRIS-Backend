@@ -145,18 +145,23 @@ var (
 		{ID: "dashboard", Name: "Dashboard"},
 		{ID: "employee", Name: "Pegawai"},
 		{ID: "branch", Name: "Cabang"},
+		{ID: "department", Name: "Departemen"},
 		{ID: "position", Name: "Jabatan"},
 		{ID: "role", Name: "Role"},
+		{ID: "leave_type", Name: "Tipe Cuti"},
+		{ID: "shift", Name: "Shift"},
+		{ID: "holiday", Name: "Hari Libur"},
 		{ID: "attendance", Name: "Kehadiran"},
 		{ID: "leave", Name: "Cuti"},
-		{ID: "report", Name: "Laporan"},
+		{ID: "request", Name: "Pengajuan"},
+		{ID: "daily_report", Name: "RKH"},
+		{ID: "mutabaah", Name: "Mutabaah"},
 	}
 
 	PermissionActionMeta = []dto.Meta{
-		{ID: "module", Name: "Module"},
-		{ID: "view", Name: "Lihat"},
+		{ID: "read", Name: "Lihat"},
 		{ID: "create", Name: "Tambah"},
-		{ID: "edit", Name: "Edit"},
+		{ID: "update", Name: "Edit"},
 		{ID: "delete", Name: "Hapus"},
 		{ID: "approve", Name: "Approve"},
 	}
