@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net/http"
 	"os"
@@ -12,8 +13,12 @@ import (
 	"hris-backend/config/env"
 	logger "hris-backend/config/log"
 	redisSetup "hris-backend/config/redis"
+	"hris-backend/config/storage"
 	"hris-backend/interface/http/router"
+	"hris-backend/internal/cron"
 	"hris-backend/internal/redis"
+	"hris-backend/internal/repository"
+	"hris-backend/internal/service"
 	"hris-backend/internal/utils"
 	"hris-backend/internal/utils/data"
 )
@@ -39,7 +44,6 @@ func init() {
 	}
 }
 
-// shutdownHTTP gracefully shuts down the HTTP server
 func shutdownHTTP(app interface{ ShutdownWithTimeout(time.Duration) error }, errors map[string]any) {
 	if app == nil {
 		return
@@ -66,7 +70,6 @@ func shutdownRedis(redisInstance redis.Redis, errors map[string]any) {
 	}
 }
 
-// shutdownInfra closes queue and database connections
 func shutdownInfra(dbInstance db.DatabaseClient, errors map[string]any) {
 	if err := dbInstance.Close(); err != nil {
 		logger.Error(data.LogDBCloseFailed, map[string]any{
@@ -78,7 +81,7 @@ func shutdownInfra(dbInstance db.DatabaseClient, errors map[string]any) {
 }
 
 func main() {
-	// ── Database ───────────────────────────────────────────────
+	// ── Database ───────────────────────────────────────────────────
 	startTime := time.Now()
 	dbInstance := db.GetInstance(env.Cfg.Database)
 	logger.Info(data.LogDBSetupSuccess, map[string]any{
@@ -86,7 +89,7 @@ func main() {
 		"duration": utils.Ms(time.Since(startTime)),
 	})
 
-	// ── Redis ──────────────────────────────────────────────────
+	// ── Redis ──────────────────────────────────────────────────────
 	startTime = time.Now()
 	redisClient, err := redisSetup.NewRedisClient(redisSetup.RedisConfig{
 		Address:  env.Cfg.Redis.Address,
@@ -105,9 +108,39 @@ func main() {
 		"duration": utils.Ms(time.Since(startTime)),
 	})
 
-	// ── HTTP Server ────────────────────────────────────────────
+	// ── MinIO ──────────────────────────────────────────────────────
 	startTime = time.Now()
-	httpServer := router.SetupHTTPServer(dbInstance, redisInstance)
+	minioClient, err := storage.NewMinioClient(env.Cfg.Minio)
+	if err != nil {
+		logger.Fatal("minio_setup_failed", map[string]any{
+			"service": "minio",
+			"error":   err.Error(),
+		})
+	}
+	// Pastikan bucket sudah ada
+	if err := minioClient.EnsureBuckets(context.Background()); err != nil {
+		logger.Fatal("minio_bucket_setup_failed", map[string]any{
+			"service": "minio",
+			"error":   err.Error(),
+		})
+	}
+	logger.Info("minio_setup_success", map[string]any{
+		"service":  "minio",
+		"host":     env.Cfg.Minio.Host,
+		"duration": utils.Ms(time.Since(startTime)),
+	})
+
+	// ── Cron Scheduler ────────────────────────────────────────────
+	attendanceRepo := repository.NewAttendanceRepository(dbInstance.GetDB())
+	mutabaahRepo := repository.NewMutabaahRepository(dbInstance.GetDB())
+	txManager := repository.NewTxManager(dbInstance.GetDB())
+	cronSvc := service.NewCronService(attendanceRepo, mutabaahRepo, txManager)
+	scheduler := cron.NewScheduler(cronSvc)
+	scheduler.Start()
+
+	// ── HTTP Server ────────────────────────────────────────────────
+	startTime = time.Now()
+	httpServer := router.SetupHTTPServer(dbInstance, redisInstance, minioClient)
 	if httpServer != nil {
 		go func() {
 			if err := httpServer.Listen(":" + env.Cfg.Server.HTTPPort); err != nil && err != http.ErrServerClosed {
@@ -124,7 +157,7 @@ func main() {
 		})
 	}
 
-	// ── Wait for shutdown signal ───────────────────────────────
+	// ── Wait for shutdown signal ───────────────────────────────────
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
@@ -136,8 +169,10 @@ func main() {
 	startTime = time.Now()
 	shutdownErrors := map[string]any{"service": data.MainService}
 
-	shutdownHTTP(httpServer, shutdownErrors)
+	scheduler.Stop()
 
+	shutdownHTTP(httpServer, shutdownErrors)
+	shutdownRedis(redisInstance, shutdownErrors)
 	shutdownInfra(dbInstance, shutdownErrors)
 
 	if len(shutdownErrors) > 1 {

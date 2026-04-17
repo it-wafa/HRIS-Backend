@@ -29,9 +29,10 @@ type (
 	}
 
 	Minio struct {
-		Host        string `env:"MINIO_HOST"`
-		AccessKey   string `env:"MINIO_ROOT_USER"`
-		SecretKey   string `env:"MINIO_ROOT_PASSWORD"`
+		Host      string `env:"MINIO_HOST"`
+		Port      string `env:"MINIO_PORT"`
+		AccessKey string `env:"MINIO_ROOT_USER"`
+		SecretKey string `env:"MINIO_ROOT_PASSWORD"`
 	}
 
 	Config struct {
@@ -46,7 +47,6 @@ var Cfg Config
 
 const errEnvNotSet = " env is not set"
 
-// lookupEnv reads an OS environment variable; if missing it appends a message to missing.
 func lookupEnv(key string, dest *string, missing *[]string) {
 	if val, ok := os.LookupEnv(key); ok {
 		*dest = val
@@ -55,7 +55,6 @@ func lookupEnv(key string, dest *string, missing *[]string) {
 	}
 }
 
-// LoadNative loads configuration from OS environment variables (or a .env file).
 func LoadNative() ([]string, error) {
 	if _, err := os.Stat(".env"); err == nil {
 		if err := godotenv.Load(); err != nil {
@@ -83,6 +82,11 @@ func LoadNative() ([]string, error) {
 	lookupEnv("MINIO_HOST", &Cfg.Minio.Host, &missing)
 	lookupEnv("MINIO_ROOT_USER", &Cfg.Minio.AccessKey, &missing)
 	lookupEnv("MINIO_ROOT_PASSWORD", &Cfg.Minio.SecretKey, &missing)
+	if port, ok := os.LookupEnv("MINIO_PORT"); ok {
+		Cfg.Minio.Port = port
+	} else {
+		Cfg.Minio.Port = "9000"
+	}
 
 	return missing, nil
 }

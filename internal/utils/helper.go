@@ -3,6 +3,7 @@ package utils
 import (
 	"fmt"
 	"math/rand"
+	"regexp"
 	"strings"
 	"time"
 
@@ -77,5 +78,12 @@ func ParseAuto(s string) (time.Time, error) {
 
 func GenerateEmail(name string) string {
 	name = strings.ToLower(strings.Split(name, " ")[0])
+	// Remove special characters and symbols
+	reg := regexp.MustCompile(`[^a-zA-Z0-9]+`)
+	name = reg.ReplaceAllString(name, "")
 	return fmt.Sprintf("%s@wafa.id", name)
+}
+
+func TodayDate() string {
+	return time.Now().Format("2006-01-02")
 }

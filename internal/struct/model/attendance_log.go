@@ -6,25 +6,28 @@ import (
 	"gorm.io/gorm"
 )
 
+// ClockMethodEnum — sesuai clock_method_enum di DB: 'gps', 'manual'
+// File attendance_log.go yang lama mendefinisikan 'face', 'qr_code', 'manual'
+// yang tidak sesuai dengan migration SQL. File ini adalah versi KOREKSI.
+// Hapus/replace definisi di attendance_log.go existing jika ada konflik.
 type (
 	ClockMethodEnum      string
 	AttendanceStatusEnum string
 )
 
 const (
-	ClockMethodFace   ClockMethodEnum = "face"
+	ClockMethodGPS    ClockMethodEnum = "gps"
 	ClockMethodManual ClockMethodEnum = "manual"
-	ClockMethodQRCode ClockMethodEnum = "qr_code"
 )
 
 const (
 	AttendancePresent      AttendanceStatusEnum = "present"
-	AttendanceAbsent       AttendanceStatusEnum = "absent"
 	AttendanceLate         AttendanceStatusEnum = "late"
-	AttendancePermission   AttendanceStatusEnum = "permission"
+	AttendanceAbsent       AttendanceStatusEnum = "absent"
+	AttendanceHalfDay      AttendanceStatusEnum = "half_day"
 	AttendanceLeave        AttendanceStatusEnum = "leave"
-	AttendanceHoliday      AttendanceStatusEnum = "holiday"
 	AttendanceBusinessTrip AttendanceStatusEnum = "business_trip"
+	AttendanceHoliday      AttendanceStatusEnum = "holiday"
 )
 
 type AttendanceLog struct {
