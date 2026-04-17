@@ -1,0 +1,82 @@
+package service
+
+import (
+	"context"
+	"time"
+
+	"hris-backend/internal/repository"
+	"hris-backend/internal/struct/dto"
+	"hris-backend/internal/utils"
+)
+
+type DashboardService interface {
+	GetEmployeeDashboard(ctx context.Context, employeeID uint) (dto.EmployeeDashboardResponse, error)
+	GetHRDDashboard(ctx context.Context, hrID uint) (dto.HRDDashboardResponse, error)
+}
+
+type dashboardService struct {
+	dashboardRepo repository.DashboardRepository
+	attendRepo    repository.AttendanceRepository
+	mutabaahRepo  repository.MutabaahRepository
+}
+
+func NewDashboardService(
+	dashboardRepo repository.DashboardRepository,
+	attendRepo repository.AttendanceRepository,
+	mutabaahRepo repository.MutabaahRepository,
+) DashboardService {
+	return &dashboardService{
+		dashboardRepo: dashboardRepo,
+		attendRepo:    attendRepo,
+		mutabaahRepo:  mutabaahRepo,
+	}
+}
+
+func (s *dashboardService) GetEmployeeDashboard(ctx context.Context, employeeID uint) (dto.EmployeeDashboardResponse, error) {
+	today := utils.TodayDate()
+	now := time.Now()
+	year, month, _ := now.Date()
+
+	// 1. Today status (Attendance)
+	attendLog, _ := s.attendRepo.GetTodayLog(ctx, nil, employeeID, today)
+	
+	// 2. Today Mutabaah status
+	mutabaahLog, _ := s.mutabaahRepo.GetTodayLog(ctx, nil, employeeID, today)
+
+	// 3. Monthly Summary
+	monthlySummary, _ := s.dashboardRepo.GetMonthlyAttendanceSummary(ctx, employeeID, year, int(month))
+
+	// 4. Leave Balances
+	leaveBalances, _ := s.dashboardRepo.GetLeaveBalanceSummary(ctx, employeeID, year)
+
+	// 5. Pending Requests
+	pendingRequests, _ := s.dashboardRepo.GetPendingRequests(ctx, employeeID)
+
+	return dto.EmployeeDashboardResponse{
+		Today:           attendLog,
+		MutabaahToday:   mutabaahLog,
+		MonthlySummary:  monthlySummary,
+		LeaveBalances:   leaveBalances,
+		PendingRequests: pendingRequests,
+	}, nil
+}
+
+func (s *dashboardService) GetHRDDashboard(ctx context.Context, hrID uint) (dto.HRDDashboardResponse, error) {
+	today := utils.TodayDate()
+
+	queue, _ := s.dashboardRepo.GetApprovalQueue(ctx, hrID)
+	counts, _ := s.dashboardRepo.GetApprovalCounts(ctx, hrID)
+	teamAttend, _ := s.dashboardRepo.GetTeamAttendanceSummary(ctx, today)
+	teamMutabaah, _ := s.dashboardRepo.GetTeamMutabaahSummary(ctx, today)
+	notClockedIn, _ := s.dashboardRepo.GetNotClockedIn(ctx, today)
+	expiring, _ := s.dashboardRepo.GetExpiringContracts(ctx, 30) // Constraint 30 days
+
+	return dto.HRDDashboardResponse{
+		ApprovalQueue:     queue,
+		ApprovalCounts:    counts,
+		TeamAttendance:    teamAttend,
+		TeamMutabaah:      teamMutabaah,
+		NotClockedIn:      notClockedIn,
+		ExpiringContracts: expiring,
+	}, nil
+}

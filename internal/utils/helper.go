@@ -2,6 +2,7 @@ package utils
 
 import (
 	"fmt"
+	"math"
 	"math/rand"
 	"regexp"
 	"strings"
@@ -86,4 +87,30 @@ func GenerateEmail(name string) string {
 
 func TodayDate() string {
 	return time.Now().Format("2006-01-02")
+}
+
+// haversineDistance menghitung jarak dua koordinat dalam meter
+func HaversineDistance(lat1, lon1, lat2, lon2 float64) float64 {
+	const earthRadius = 6371000 // meter
+	dLat := (lat2 - lat1) * math.Pi / 180
+	dLon := (lon2 - lon1) * math.Pi / 180
+	a := math.Sin(dLat/2)*math.Sin(dLat/2) +
+		math.Cos(lat1*math.Pi/180)*math.Cos(lat2*math.Pi/180)*
+			math.Sin(dLon/2)*math.Sin(dLon/2)
+	c := 2 * math.Atan2(math.Sqrt(a), math.Sqrt(1-a))
+	return earthRadius * c
+}
+
+// parseTimeString parse "HH:MM:SS" menjadi time.Time di tanggal yang diberikan
+func ParseTimeString(t string, date string) (time.Time, error) {
+	combined := fmt.Sprintf("%s %s", date, t)
+	parsed, err := time.ParseInLocation("2006-01-02 15:04:05", combined, time.Local)
+	if err != nil {
+		// coba format HH:MM
+		parsed, err = time.ParseInLocation("2006-01-02 15:04", combined[:len(date)+6], time.Local)
+		if err != nil {
+			return time.Time{}, fmt.Errorf("parse time %q: %w", t, err)
+		}
+	}
+	return parsed, nil
 }

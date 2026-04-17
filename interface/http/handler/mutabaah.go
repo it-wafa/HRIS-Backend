@@ -93,3 +93,23 @@ func (h *MutabaahHandler) List(c *fiber.Ctx) error {
 		Data:       result,
 	})
 }
+
+// HRDCancel — admin: batalkan laporan mutabaah yang telah disubmit
+// PUT /mutabaah/:id/cancel
+func (h *MutabaahHandler) HRDCancel(c *fiber.Ctx) error {
+	id, err := c.ParamsInt("id")
+	if err != nil {
+		return respondBadRequest(c, "invalid mutabaah ID")
+	}
+
+	result, err := h.service.HRDCancel(c.Context(), uint(id))
+	if err != nil {
+		return respondError(c, err)
+	}
+	return c.JSON(dto.APIResponse{
+		Status:     true,
+		StatusCode: 200,
+		Message:    "mutabaah reports canceled by HRD",
+		Data:       result,
+	})
+}

@@ -164,4 +164,64 @@ var (
 		{ID: "delete", Name: "Hapus"},
 		{ID: "approve", Name: "Approve"},
 	}
+
+	AttendanceStatusMeta = []dto.Meta{
+		{ID: "present", Name: "Hadir"},
+		{ID: "late", Name: "Terlambat"},
+		{ID: "absent", Name: "Absen"},
+		{ID: "half_day", Name: "Setengah Hari"},
+		{ID: "leave", Name: "Cuti"},
+		{ID: "business_trip", Name: "Dinas Luar"},
+		{ID: "holiday", Name: "Libur"},
+	}
+
+	ClockMethodMeta = []dto.Meta{
+		{ID: "gps", Name: "GPS"},
+		{ID: "qr_code", Name: "QR Code"},
+		{ID: "face_recognition", Name: "Face Recognition"},
+		{ID: "manual", Name: "Manual"},
+	}
+
+	OverrideTypeMeta = []dto.Meta{
+		{ID: "clock_in", Name: "Koreksi Jam Masuk"},
+		{ID: "clock_out", Name: "Koreksi Jam Keluar"},
+		{ID: "full_day", Name: "Koreksi Penuh"},
+	}
+
+	OverrideStatusMeta = []dto.Meta{
+		{ID: "pending", Name: "Menunggu"},
+		{ID: "approved", Name: "Disetujui"},
+		{ID: "rejected", Name: "Ditolak"},
+	}
+
+	PermissionTypeMeta = []dto.Meta{
+		{ID: "late_arrival", Name: "Izin Terlambat"},
+		{ID: "early_leave", Name: "Izin Pulang Cepat"},
+		{ID: "out_of_office", Name: "Izin Keluar Kantor"},
+	}
+
+	WorkLocationMeta = []dto.Meta{
+		{ID: "office", Name: "Kantor"},
+		{ID: "home", Name: "Rumah"},
+		{ID: "outside", Name: "Luar Kantor"},
+	}
+
+	OvertimeStatusMeta = []dto.Meta{
+		{ID: "pending", Name: "Menunggu"},
+		{ID: "approved", Name: "Disetujui"},
+		{ID: "rejected", Name: "Ditolak"},
+	}
+
+	TripStatusMeta = []dto.Meta{
+		{ID: "pending", Name: "Menunggu"},
+		{ID: "approved", Name: "Disetujui"},
+		{ID: "rejected", Name: "Ditolak"},
+	}
+
+	LeaveRequestStatusMeta = []dto.Meta{
+		{ID: "pending", Name: "Menunggu"},
+		{ID: "approved_leader", Name: "Disetujui Leader"},
+		{ID: "approved_hr", Name: "Disetujui HR"},
+		{ID: "rejected", Name: "Ditolak"},
+	}
 )

@@ -29,5 +29,8 @@ func MutabaahRoutes(app *fiber.App, db *gorm.DB) {
 
 		// Admin: daftar semua mutabaah
 		mutabaah.Get("/", middleware.RBACMiddleware(data.PERM_MutabaahRead), h.List)
+		
+		// Admin: HRD cancel mutabaah
+		mutabaah.Put("/:id/cancel", middleware.RBACMiddleware(data.PERM_MutabaahUpdate), h.HRDCancel)
 	}
 }

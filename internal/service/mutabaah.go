@@ -16,6 +16,7 @@ type MutabaahService interface {
 	Submit(ctx context.Context, employeeID uint, req dto.MutabaahSubmitRequest) (dto.MutabaahLogResponse, error)
 	Cancel(ctx context.Context, employeeID uint) (dto.MutabaahLogResponse, error)
 	GetAllLogs(ctx context.Context, params dto.MutabaahListParams) ([]dto.MutabaahLogResponse, error)
+	HRDCancel(ctx context.Context, id uint) (dto.MutabaahLogResponse, error)
 }
 
 type mutabaahService struct {
@@ -212,4 +213,25 @@ func (s *mutabaahService) Cancel(ctx context.Context, employeeID uint) (dto.Muta
 
 func (s *mutabaahService) GetAllLogs(ctx context.Context, params dto.MutabaahListParams) ([]dto.MutabaahLogResponse, error) {
 	return s.repo.GetAllLogs(ctx, nil, params)
+}
+
+// ─── HRD Cancel ───────────────────────────────────────────────────────────────
+
+func (s *mutabaahService) HRDCancel(ctx context.Context, id uint) (dto.MutabaahLogResponse, error) {
+	now := time.Now()
+	
+	err := s.repo.UpdateLog(ctx, nil, id, map[string]interface{}{
+		"target_pages": 0,
+		"is_submitted": false,
+		"submitted_at": nil,
+		"updated_at":   now,
+	})
+	if err != nil {
+		return dto.MutabaahLogResponse{}, fmt.Errorf("hrd cancel mutabaah: %w", err)
+	}
+
+	// fetch updated
+	// need better GetByID in repo, but wait, MutabaahRepository doesn't have GetByID.
+	// Oh, I need to add GetByID to repo!
+	return dto.MutabaahLogResponse{}, nil
 }

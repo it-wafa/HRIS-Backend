@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"fmt"
-	"math"
 	"time"
 
 	"hris-backend/config/storage"
@@ -11,6 +10,7 @@ import (
 	"hris-backend/internal/struct/dto"
 	"hris-backend/internal/struct/model"
 	"hris-backend/internal/utils"
+	"hris-backend/internal/utils/data"
 )
 
 type AttendanceService interface {
@@ -28,6 +28,18 @@ type AttendanceService interface {
 
 	// Admin: list semua
 	GetAllLogs(ctx context.Context, params dto.AttendanceListParams) ([]dto.AttendanceLogResponse, error)
+
+	// Meta
+	GetMetadata(ctx context.Context) (dto.AttendanceMetadata, error)
+
+	// Manual Attendance
+	CreateManualAttendance(ctx context.Context, employeeID uint, req dto.CreateManualAttendanceRequest) (dto.AttendanceLogResponse, error)
+
+	// Override
+	GetAllOverrides(ctx context.Context, params dto.OverrideListParams) ([]dto.AttendanceOverrideResponse, error)
+	GetOverrideByID(ctx context.Context, id uint) (dto.AttendanceOverrideResponse, error)
+	CreateOverride(ctx context.Context, employeeID uint, req dto.CreateOverrideRequest) (dto.AttendanceOverrideResponse, error)
+	UpdateOverrideStatus(ctx context.Context, employeeID uint, id uint, req dto.UpdateOverrideStatusRequest) (dto.AttendanceOverrideResponse, error)
 }
 
 type attendanceService struct {
@@ -212,7 +224,7 @@ func (s *attendanceService) ClockIn(ctx context.Context, employeeID uint, req dt
 			if branch.Latitude == nil || branch.Longitude == nil {
 				return dto.AttendanceLogResponse{}, fmt.Errorf("koordinat cabang belum dikonfigurasi")
 			}
-			dist := haversineDistance(req.Latitude, req.Longitude, *branch.Latitude, *branch.Longitude)
+			dist := utils.HaversineDistance(req.Latitude, req.Longitude, *branch.Latitude, *branch.Longitude)
 			if dist > float64(branch.RadiusMeters) {
 				return dto.AttendanceLogResponse{}, fmt.Errorf(
 					"lokasi anda (%.0f meter) di luar radius presensi yang diizinkan (%d meter)",
@@ -233,7 +245,7 @@ func (s *attendanceService) ClockIn(ctx context.Context, employeeID uint, req dt
 	}
 
 	if !shift.IsFlexible && shift.ClockInEnd != nil {
-		clockInEnd, parseErr := parseTimeString(*shift.ClockInEnd, today)
+		clockInEnd, parseErr := utils.ParseTimeString(*shift.ClockInEnd, today)
 		if parseErr == nil && now.After(clockInEnd) {
 			lateMinutes = int(now.Sub(clockInEnd).Minutes())
 			if latePerm != nil {
@@ -340,7 +352,7 @@ func (s *attendanceService) ClockOut(ctx context.Context, employeeID uint, req d
 			return dto.AttendanceLogResponse{}, fmt.Errorf("get branch detail: %w", err)
 		}
 		if !branch.AllowWFH && branch.Latitude != nil && branch.Longitude != nil {
-			dist := haversineDistance(req.Latitude, req.Longitude, *branch.Latitude, *branch.Longitude)
+			dist := utils.HaversineDistance(req.Latitude, req.Longitude, *branch.Latitude, *branch.Longitude)
 			if dist > float64(branch.RadiusMeters) {
 				return dto.AttendanceLogResponse{}, fmt.Errorf(
 					"lokasi anda (%.0f meter) di luar radius presensi yang diizinkan (%d meter)",
@@ -364,7 +376,7 @@ func (s *attendanceService) ClockOut(ctx context.Context, employeeID uint, req d
 
 	if shift != nil && !shift.IsFlexible {
 		if shift.ClockOutStart != nil {
-			clockOutStart, parseErr := parseTimeString(*shift.ClockOutStart, today)
+			clockOutStart, parseErr := utils.ParseTimeString(*shift.ClockOutStart, today)
 			if parseErr == nil && now.Before(clockOutStart) {
 				// Pulang lebih awal dari window clock_out_start
 				earlyLeaveMinutes = int(clockOutStart.Sub(now).Minutes())
@@ -377,7 +389,7 @@ func (s *attendanceService) ClockOut(ctx context.Context, employeeID uint, req d
 		}
 
 		if shift.ClockOutEnd != nil {
-			clockOutEnd, parseErr := parseTimeString(*shift.ClockOutEnd, today)
+			clockOutEnd, parseErr := utils.ParseTimeString(*shift.ClockOutEnd, today)
 			if parseErr == nil && now.After(clockOutEnd) {
 				overtimeMinutes = int(now.Sub(clockOutEnd).Minutes())
 			}
@@ -438,30 +450,223 @@ func (s *attendanceService) GetAllLogs(ctx context.Context, params dto.Attendanc
 	return s.repo.GetAllLogs(ctx, nil, params)
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// ─── Metadata ─────────────────────────────────────────────────────────────────
 
-// haversineDistance menghitung jarak dua koordinat dalam meter
-func haversineDistance(lat1, lon1, lat2, lon2 float64) float64 {
-	const earthRadius = 6371000 // meter
-	dLat := (lat2 - lat1) * math.Pi / 180
-	dLon := (lon2 - lon1) * math.Pi / 180
-	a := math.Sin(dLat/2)*math.Sin(dLat/2) +
-		math.Cos(lat1*math.Pi/180)*math.Cos(lat2*math.Pi/180)*
-			math.Sin(dLon/2)*math.Sin(dLon/2)
-	c := 2 * math.Atan2(math.Sqrt(a), math.Sqrt(1-a))
-	return earthRadius * c
+func (s *attendanceService) GetMetadata(ctx context.Context) (dto.AttendanceMetadata, error) {
+	empMeta, err := s.repo.GetEmployeeMetaList(ctx, nil)
+	if err != nil {
+		return dto.AttendanceMetadata{}, fmt.Errorf("failed to fetch employee meta: %w", err)
+	}
+
+	return dto.AttendanceMetadata{
+		StatusMeta:       data.AttendanceStatusMeta,
+		ClockMethodMeta:  data.ClockMethodMeta,
+		OverrideTypeMeta: data.OverrideTypeMeta,
+		EmployeeMeta:     empMeta,
+	}, nil
 }
 
-// parseTimeString parse "HH:MM:SS" menjadi time.Time di tanggal yang diberikan
-func parseTimeString(t string, date string) (time.Time, error) {
-	combined := fmt.Sprintf("%s %s", date, t)
-	parsed, err := time.ParseInLocation("2006-01-02 15:04:05", combined, time.Local)
+// ─── Manual Attendance & Overrides ────────────────────────────────────────────
+
+func (s *attendanceService) CreateManualAttendance(ctx context.Context, employeeID uint, req dto.CreateManualAttendanceRequest) (dto.AttendanceLogResponse, error) {
+	existing, err := s.repo.GetTodayLog(ctx, nil, req.EmployeeID, req.AttendanceDate)
 	if err != nil {
-		// coba format HH:MM
-		parsed, err = time.ParseInLocation("2006-01-02 15:04", combined[:len(date)+6], time.Local)
-		if err != nil {
-			return time.Time{}, fmt.Errorf("parse time %q: %w", t, err)
+		return dto.AttendanceLogResponse{}, fmt.Errorf("check existing: %w", err)
+	}
+	if existing != nil {
+		return dto.AttendanceLogResponse{}, fmt.Errorf("attendance log for %s already exists", req.AttendanceDate)
+	}
+
+	shift, err := s.repo.GetActiveSchedule(ctx, nil, req.EmployeeID, req.AttendanceDate)
+	if err != nil {
+		return dto.AttendanceLogResponse{}, fmt.Errorf("get schedule: %w", err)
+	}
+
+	clockMethod := model.ClockMethodManual
+	status := model.AttendancePresent // default fallbacks
+	lateMinutes := 0
+
+	tIn, _ := utils.ParseTimeString(req.ClockInAt, req.AttendanceDate)
+	var tOutPtr *time.Time
+	if req.ClockOutAt != nil {
+		tOut, _ := utils.ParseTimeString(*req.ClockOutAt, req.AttendanceDate)
+		tOutPtr = &tOut
+	}
+
+	if shift != nil && !shift.IsFlexible && shift.ClockInEnd != nil {
+		clockInEnd, errEnd := utils.ParseTimeString(*shift.ClockInEnd, req.AttendanceDate)
+		if errEnd == nil && tIn.After(clockInEnd) {
+			status = model.AttendanceLate
+			lateMinutes = int(tIn.Sub(clockInEnd).Minutes())
 		}
 	}
-	return parsed, nil
+
+	latePerm, _ := s.repo.GetApprovedPermission(ctx, nil, req.EmployeeID, req.AttendanceDate, "late_arrival")
+	var permID *uint
+	if latePerm != nil {
+		status = model.AttendancePresent
+		permID = &latePerm.ID
+	}
+
+	logModel := model.AttendanceLog{
+		EmployeeID:          req.EmployeeID,
+		AttendanceDate:      tIn,
+		ClockInAt:           &tIn,
+		ClockOutAt:          tOutPtr,
+		ClockInMethod:       &clockMethod,
+		Status:              status,
+		LateMinutes:         lateMinutes,
+		IsAutoGenerated:     false,
+		PermissionRequestID: permID,
+	}
+
+	if tOutPtr != nil {
+		logModel.ClockOutMethod = &clockMethod
+	}
+
+	if shift != nil {
+		logModel.ScheduleID = &shift.ScheduleID
+	}
+
+	tx, err := s.txManager.Begin(ctx)
+	if err != nil {
+		return dto.AttendanceLogResponse{}, fmt.Errorf("tx begin: %w", err)
+	}
+	defer tx.Rollback()
+
+	created, err := s.repo.CreateManualAttendance(ctx, tx, logModel)
+	if err != nil {
+		return dto.AttendanceLogResponse{}, fmt.Errorf("create manual log: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return dto.AttendanceLogResponse{}, fmt.Errorf("commit: %w", err)
+	}
+
+	log, err := s.repo.GetLogByID(ctx, nil, created.ID)
+	if err != nil || log == nil {
+		return dto.AttendanceLogResponse{}, fmt.Errorf("fetch created log: %w", err)
+	}
+	return *log, nil
+}
+
+func (s *attendanceService) GetAllOverrides(ctx context.Context, params dto.OverrideListParams) ([]dto.AttendanceOverrideResponse, error) {
+	return s.repo.GetAllOverrides(ctx, nil, params)
+}
+
+func (s *attendanceService) GetOverrideByID(ctx context.Context, id uint) (dto.AttendanceOverrideResponse, error) {
+	res, err := s.repo.GetOverrideByID(ctx, nil, id)
+	if err != nil {
+		return dto.AttendanceOverrideResponse{}, err
+	}
+	return *res, nil
+}
+
+func (s *attendanceService) CreateOverride(ctx context.Context, employeeID uint, req dto.CreateOverrideRequest) (dto.AttendanceOverrideResponse, error) {
+	log, err := s.repo.GetLogByID(ctx, nil, req.AttendanceLogID)
+	if err != nil || log == nil {
+		return dto.AttendanceOverrideResponse{}, fmt.Errorf("attendance log not found: %w", err)
+	}
+
+	var parsedIn, parsedOut *time.Time
+	if req.CorrectedClockIn != nil {
+		if log != nil {
+			t, e := utils.ParseTimeString(*req.CorrectedClockIn, log.AttendanceDate)
+			if e == nil {
+				parsedIn = &t
+			}
+		}
+	}
+	if req.CorrectedClockOut != nil {
+		if log != nil {
+			t, e := utils.ParseTimeString(*req.CorrectedClockOut, log.AttendanceDate)
+			if e == nil {
+				parsedOut = &t
+			}
+		}
+	}
+
+	modelType := model.OverrideTypeEnum(req.OverrideType)
+
+	tx, err := s.txManager.Begin(ctx)
+	if err != nil {
+		return dto.AttendanceOverrideResponse{}, err
+	}
+	defer tx.Rollback()
+
+	ov := model.AttendanceOverride{
+		AttendanceLogID:   req.AttendanceLogID,
+		RequestedBy:       employeeID,
+		OverrideType:      modelType,
+		OriginalClockIn:   log.ClockInAt,
+		OriginalClockOut:  log.ClockOutAt,
+		CorrectedClockIn:  parsedIn,
+		CorrectedClockOut: parsedOut,
+		Reason:            req.Reason,
+		Status:            model.RequestStatusPending,
+	}
+
+	created, err := s.repo.CreateOverride(ctx, tx, ov)
+	if err != nil {
+		return dto.AttendanceOverrideResponse{}, fmt.Errorf("create override: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return dto.AttendanceOverrideResponse{}, err
+	}
+
+	res, err := s.repo.GetOverrideByID(ctx, nil, created.ID)
+	if err != nil {
+		return dto.AttendanceOverrideResponse{}, err
+	}
+	return *res, nil
+}
+
+func (s *attendanceService) UpdateOverrideStatus(ctx context.Context, employeeID uint, id uint, req dto.UpdateOverrideStatusRequest) (dto.AttendanceOverrideResponse, error) {
+	ov, err := s.repo.GetOverrideByID(ctx, nil, id)
+	if err != nil {
+		return dto.AttendanceOverrideResponse{}, err
+	}
+	if ov.Status != string(model.RequestStatusPending) {
+		return dto.AttendanceOverrideResponse{}, fmt.Errorf("override is no longer pending")
+	}
+
+	tx, err := s.txManager.Begin(ctx)
+	if err != nil {
+		return dto.AttendanceOverrideResponse{}, err
+	}
+	defer tx.Rollback()
+
+	updates := map[string]interface{}{
+		"status":         req.Status,
+		"approved_by":    employeeID,
+		"approver_notes": req.ApproverNotes,
+	}
+
+	if err := s.repo.UpdateOverrideStatus(ctx, tx, id, updates); err != nil {
+		return dto.AttendanceOverrideResponse{}, err
+	}
+
+	if model.RequestStatusEnum(req.Status) == model.RequestStatusApproved {
+		logUpds := make(map[string]interface{})
+		if ov.CorrectedClockIn != nil {
+			logUpds["clock_in_at"] = ov.CorrectedClockIn
+		}
+		if ov.CorrectedClockOut != nil {
+			logUpds["clock_out_at"] = ov.CorrectedClockOut
+		}
+		logUpds["updated_at"] = time.Now()
+
+		if err := s.repo.UpdateLog(ctx, tx, ov.AttendanceLogID, logUpds); err != nil {
+			return dto.AttendanceOverrideResponse{}, fmt.Errorf("syncing corrected values: %w", err)
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return dto.AttendanceOverrideResponse{}, err
+	}
+
+	res, err := s.repo.GetOverrideByID(ctx, nil, id)
+	if err != nil {
+		return dto.AttendanceOverrideResponse{}, err
+	}
+	return *res, nil
 }

@@ -15,8 +15,9 @@ import (
 func InternalRoutes(app *fiber.App, db *gorm.DB) {
 	attendRepo := repository.NewAttendanceRepository(db)
 	mutaRepo := repository.NewMutabaahRepository(db)
+	dailyRepo := repository.NewDailyReportRepository(db)
 	txManager := repository.NewTxManager(db)
-	cronSvc := service.NewCronService(attendRepo, mutaRepo, txManager)
+	cronSvc := service.NewCronService(attendRepo, mutaRepo, dailyRepo, txManager)
 	cronH := handler.NewCronHandler(cronSvc)
 
 	internal := app.Group("/internal")

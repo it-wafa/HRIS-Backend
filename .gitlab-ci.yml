@@ -1,0 +1,96 @@
+# yaml-language-server: $schema=https://gitlab.com/gitlab-org/gitlab/-/raw/HEAD/app/assets/javascripts/editor/schema/ci.json
+
+stages:
+  - build
+  - release
+  - deploy
+
+variables:
+  TAG_IMAGE: $CI_COMMIT_TAG
+
+build_hris_wafa_web:
+  stage: build
+  image: docker:latest
+  services:
+    - docker:dind
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^v[0-9]{4}\.[0-9]{1,3}$/
+  before_script:
+    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" $CI_REGISTRY
+  script:
+    - echo "Building HRIS Wafa Web Application..."
+    - docker build -t "$CI_REGISTRY_IMAGE/hris_wafa-web:$TAG_IMAGE" .
+    - docker push "$CI_REGISTRY_IMAGE/hris_wafa-web:$TAG_IMAGE"
+    - echo "$CI_JOB_ID" > hris_wafa_web_build_job_id.txt
+  artifacts:
+    paths:
+      - hris_wafa_web_build_job_id.txt
+
+release:
+  stage: release
+  image: registry.gitlab.com/gitlab-org/release-cli:latest
+  needs:
+    - job: build_hris_wafa_web
+      artifacts: true
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^v[0-9]{4}\.[0-9]{1,3}$/
+  variables:
+    RELEASE_TITLE: "Release ${CI_COMMIT_TAG}"
+    RELEASE_DESC: "Tagged after commit ${CI_COMMIT_SHORT_SHA}, message ${CI_COMMIT_TAG_MESSAGE}"
+  script:
+    - export HRIS_WAFA_WEB_BUILD_JOB_ID="$(cat hris_wafa_web_build_job_id.txt)"
+    - echo "create release ${CI_COMMIT_TAG} from jobs $HRIS_WAFA_WEB_BUILD_JOB_ID"
+    - release-cli create --name "${RELEASE_TITLE}" --description "${RELEASE_DESC}" --tag-name "${CI_COMMIT_TAG}"
+
+deploy-staging:
+  stage: deploy
+  image: alpine:latest
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^v[0-9]{4}\.[0-9]{1,3}$/
+  before_script:
+    - "which ssh-agent || ( apk update && apk add --no-cache openssh)"
+    - mkdir -p ~/.ssh
+    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/id_rsa
+    - chmod 700 ~/.ssh/id_rsa
+    - eval "$(ssh-agent -s)"
+    - ssh-add ~/.ssh/id_rsa
+    - '[[ -f /.dockerenv ]] && echo -e "Host *\n\tStrictHostKeyChecking no\n\n" > ~/.ssh/config'
+  script:
+    - |
+      ssh -p $SSH_PORT -o StrictHostKeyChecking=no ${SSH_USER}@${SSH_HOST} "
+        export STG_HRIS_WAFA_WEB=\"$CI_REGISTRY_IMAGE/hris_wafa-web\" &&
+        export STG_HRIS_WAFA_WEB_TAG=$TAG_IMAGE
+
+        cd ~/web/staging/hris_wafa &&
+
+        docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY &&
+        docker compose -f docker-compose.yml pull stg-hris-wafa-web &&
+        docker compose -f docker-compose.yml up -d stg-hris-wafa-web
+      "
+
+deploy-production:
+  stage: deploy
+  image: alpine:latest
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^v[0-9]{4}\.[0-9]{1,3}$/
+  before_script:
+    - "which ssh-agent || ( apk update && apk add --no-cache openssh)"
+    - mkdir -p ~/.ssh
+    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/id_rsa
+    - chmod 700 ~/.ssh/id_rsa
+    - eval "$(ssh-agent -s)"
+    - ssh-add ~/.ssh/id_rsa
+    - '[[ -f /.dockerenv ]] && echo -e "Host *\n\tStrictHostKeyChecking no\n\n" > ~/.ssh/config'
+  script:
+    - |
+      ssh -p $SSH_PORT -o StrictHostKeyChecking=no ${SSH_USER}@${SSH_HOST} " 
+        export PROD_HRIS_WAFA_WEB=\"$CI_REGISTRY_IMAGE/hris_wafa-web\" &&
+        export PROD_HRIS_WAFA_WEB_TAG=$CI_COMMIT_TAG &&
+
+        cd ~/web/production/hris_wafa &&
+
+        docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY &&
+        docker compose -f docker-compose.yml pull prod-hris-wafa-web &&
+        docker compose -f docker-compose.yml up -d prod-hris-wafa-web
+      "
+  when: manual

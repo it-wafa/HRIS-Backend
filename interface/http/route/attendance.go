@@ -35,5 +35,19 @@ func AttendanceRoutes(app *fiber.App, db *gorm.DB, minio storage.MinioClient) {
 
 		// Admin: daftar semua presensi
 		attendance.Get("/", middleware.RBACMiddleware(data.PERM_AttendanceRead), h.List)
+
+		// Metadata
+		attendance.Get("/metadata", h.Metadata)
+
+		// Admin: manual clock in
+		attendance.Post("/manual", middleware.RBACMiddleware(data.PERM_AttendanceCreate), h.CreateManual)
+	}
+
+	overrides := app.Group("/attendance-overrides")
+	{
+		overrides.Get("/", middleware.RBACMiddleware(data.PERM_AttendanceRead), h.ListOverrides)
+		overrides.Get("/:id", middleware.RBACMiddleware(data.PERM_AttendanceRead), h.DetailOverride)
+		overrides.Post("/", h.CreateOverride)
+		overrides.Put("/:id", middleware.RBACMiddleware(data.PERM_AttendanceUpdate), h.UpdateOverride)
 	}
 }

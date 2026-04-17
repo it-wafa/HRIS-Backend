@@ -80,6 +80,16 @@ func (s *Scheduler) runJobs() {
 			"error": err.Error(),
 		})
 	}
+
+	// 3. Tunggu sebentar, lalu tandai daily report missing
+	time.Sleep(5 * time.Second)
+
+	if err := s.cronSvc.RunDailyReportMark(ctx, today); err != nil {
+		logger.Error("cron: daily report mark failed", map[string]any{
+			"date":  today,
+			"error": err.Error(),
+		})
+	}
 }
 
 // nextRunTime menghitung waktu berikutnya pada jam:menit yang ditentukan

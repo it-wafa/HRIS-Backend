@@ -149,3 +149,120 @@ func (h *AttendanceHandler) List(c *fiber.Ctx) error {
 		Data:       result,
 	})
 }
+
+// Metadata — GET /attendance/metadata
+func (h *AttendanceHandler) Metadata(c *fiber.Ctx) error {
+	res, err := h.service.GetMetadata(c.Context())
+	if err != nil {
+		return respondError(c, err)
+	}
+	return c.JSON(dto.APIResponse{
+		Status:     true,
+		StatusCode: 200,
+		Message:    "attendance metadata",
+		Data:       res,
+	})
+}
+
+// CreateManual — POST /attendance/manual
+func (h *AttendanceHandler) CreateManual(c *fiber.Ctx) error {
+	var req dto.CreateManualAttendanceRequest
+	if err := c.BodyParser(&req); err != nil {
+		return respondBadRequest(c, "invalid request body")
+	}
+
+	account := getAccountFromCtx(c)
+	res, err := h.service.CreateManualAttendance(c.Context(), account.AccountID, req)
+	if err != nil {
+		return respondError(c, err)
+	}
+	return c.Status(fiber.StatusCreated).JSON(dto.APIResponse{
+		Status:     true,
+		StatusCode: 201,
+		Message:    "manual attendance created",
+		Data:       res,
+	})
+}
+
+// ListOverrides — GET /attendance-overrides
+func (h *AttendanceHandler) ListOverrides(c *fiber.Ctx) error {
+	var params dto.OverrideListParams
+	if err := c.QueryParser(&params); err != nil {
+		return respondBadRequest(c, err.Error())
+	}
+
+	res, err := h.service.GetAllOverrides(c.Context(), params)
+	if err != nil {
+		return respondError(c, err)
+	}
+	return c.JSON(dto.APIResponse{
+		Status:     true,
+		StatusCode: 200,
+		Message:    "attendance overrides list",
+		Data:       res,
+	})
+}
+
+// DetailOverride — GET /attendance-overrides/:id
+func (h *AttendanceHandler) DetailOverride(c *fiber.Ctx) error {
+	id, err := c.ParamsInt("id")
+	if err != nil {
+		return respondBadRequest(c, "invalid override ID")
+	}
+
+	res, err := h.service.GetOverrideByID(c.Context(), uint(id))
+	if err != nil {
+		return respondError(c, err)
+	}
+	return c.JSON(dto.APIResponse{
+		Status:     true,
+		StatusCode: 200,
+		Message:    "attendance override detail",
+		Data:       res,
+	})
+}
+
+// CreateOverride — POST /attendance-overrides
+func (h *AttendanceHandler) CreateOverride(c *fiber.Ctx) error {
+	var req dto.CreateOverrideRequest
+	if err := c.BodyParser(&req); err != nil {
+		return respondBadRequest(c, "invalid request body")
+	}
+
+	account := getAccountFromCtx(c)
+	res, err := h.service.CreateOverride(c.Context(), account.AccountID, req)
+	if err != nil {
+		return respondError(c, err)
+	}
+	return c.Status(fiber.StatusCreated).JSON(dto.APIResponse{
+		Status:     true,
+		StatusCode: 201,
+		Message:    "attendance override submitted",
+		Data:       res,
+	})
+}
+
+// UpdateOverride — PUT /attendance-overrides/:id
+func (h *AttendanceHandler) UpdateOverride(c *fiber.Ctx) error {
+	id, err := c.ParamsInt("id")
+	if err != nil {
+		return respondBadRequest(c, "invalid override ID")
+	}
+
+	var req dto.UpdateOverrideStatusRequest
+	if err := c.BodyParser(&req); err != nil {
+		return respondBadRequest(c, "invalid request body")
+	}
+
+	account := getAccountFromCtx(c)
+	res, err := h.service.UpdateOverrideStatus(c.Context(), account.AccountID, uint(id), req)
+	if err != nil {
+		return respondError(c, err)
+	}
+	return c.JSON(dto.APIResponse{
+		Status:     true,
+		StatusCode: 200,
+		Message:    "attendance override updated",
+		Data:       res,
+	})
+}

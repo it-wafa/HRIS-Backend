@@ -51,6 +51,18 @@ type AttendanceRepository interface {
 
 	// LinkOvertimeToLog — asosiasikan overtime_request approved ke attendance log
 	LinkOvertimeToLog(ctx context.Context, tx Transaction, employeeID uint, date string, logID uint) error
+
+	// Override
+	GetAllOverrides(ctx context.Context, tx Transaction, params dto.OverrideListParams) ([]dto.AttendanceOverrideResponse, error)
+	GetOverrideByID(ctx context.Context, tx Transaction, id uint) (*dto.AttendanceOverrideResponse, error)
+	CreateOverride(ctx context.Context, tx Transaction, m model.AttendanceOverride) (model.AttendanceOverride, error)
+	UpdateOverrideStatus(ctx context.Context, tx Transaction, id uint, updates map[string]interface{}) error
+
+	// Manual attendance
+	CreateManualAttendance(ctx context.Context, tx Transaction, m model.AttendanceLog) (model.AttendanceLog, error)
+
+	// Metadata
+	GetEmployeeMetaList(ctx context.Context, tx Transaction) ([]dto.Meta, error)
 }
 
 type attendanceRepository struct {
@@ -518,4 +530,131 @@ func (r *attendanceRepository) LinkOvertimeToLog(ctx context.Context, tx Transac
 		  AND (attendance_log_id IS NULL OR attendance_log_id = ?)
 		  AND deleted_at IS NULL
 	`, logID, employeeID, date, logID).Error
+}
+
+func (r *attendanceRepository) GetAllOverrides(ctx context.Context, tx Transaction, params dto.OverrideListParams) ([]dto.AttendanceOverrideResponse, error) {
+	db, err := r.getDB(ctx, tx)
+	if err != nil {
+		return nil, err
+	}
+
+	query := `
+		SELECT
+			ao.id,
+			ao.attendance_log_id,
+			al.attendance_date::TEXT AS attendance_date,
+			ao.requested_by,
+			e1.full_name             AS requester_name,
+			ao.approved_by,
+			e2.full_name             AS approver_name,
+			ao.override_type,
+			ao.original_clock_in,
+			ao.original_clock_out,
+			ao.corrected_clock_in,
+			ao.corrected_clock_out,
+			ao.reason,
+			ao.status,
+			ao.created_at,
+			ao.updated_at
+		FROM attendance_overrides ao
+		JOIN attendance_logs al ON al.id = ao.attendance_log_id
+		JOIN employees e1 ON e1.id = ao.requested_by
+		LEFT JOIN employees e2 ON e2.id = ao.approved_by
+		WHERE ao.deleted_at IS NULL
+	`
+	args := []interface{}{}
+
+	if params.EmployeeID != nil {
+		query += " AND ao.requested_by = ?"
+		args = append(args, *params.EmployeeID)
+	}
+	if params.Status != nil {
+		query += " AND ao.status = ?"
+		args = append(args, *params.Status)
+	}
+	query += " ORDER BY ao.created_at DESC"
+
+	var resp []dto.AttendanceOverrideResponse
+	if err := db.Raw(query, args...).Scan(&resp).Error; err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+func (r *attendanceRepository) GetOverrideByID(ctx context.Context, tx Transaction, id uint) (*dto.AttendanceOverrideResponse, error) {
+	db, err := r.getDB(ctx, tx)
+	if err != nil {
+		return nil, err
+	}
+
+	var resp dto.AttendanceOverrideResponse
+	err = db.Raw(`
+		SELECT
+			ao.id,
+			ao.attendance_log_id,
+			al.attendance_date::TEXT AS attendance_date,
+			ao.requested_by,
+			e1.full_name             AS requester_name,
+			ao.approved_by,
+			e2.full_name             AS approver_name,
+			ao.override_type,
+			ao.original_clock_in,
+			ao.original_clock_out,
+			ao.corrected_clock_in,
+			ao.corrected_clock_out,
+			ao.reason,
+			ao.status,
+			ao.created_at,
+			ao.updated_at
+		FROM attendance_overrides ao
+		JOIN attendance_logs al ON al.id = ao.attendance_log_id
+		JOIN employees e1 ON e1.id = ao.requested_by
+		LEFT JOIN employees e2 ON e2.id = ao.approved_by
+		WHERE ao.id = ? AND ao.deleted_at IS NULL
+	`, id).Scan(&resp).Error
+	if err != nil {
+		return nil, err
+	}
+	if resp.ID == 0 {
+		return nil, fmt.Errorf("override not found")
+	}
+	return &resp, nil
+}
+
+func (r *attendanceRepository) CreateOverride(ctx context.Context, tx Transaction, m model.AttendanceOverride) (model.AttendanceOverride, error) {
+	db, err := r.getDB(ctx, tx)
+	if err != nil {
+		return m, err
+	}
+	if err := db.Create(&m).Error; err != nil {
+		return m, err
+	}
+	return m, nil
+}
+
+func (r *attendanceRepository) UpdateOverrideStatus(ctx context.Context, tx Transaction, id uint, updates map[string]interface{}) error {
+	db, err := r.getDB(ctx, tx)
+	if err != nil {
+		return err
+	}
+	return db.Model(&model.AttendanceOverride{}).Where("id = ?", id).Updates(updates).Error
+}
+
+func (r *attendanceRepository) CreateManualAttendance(ctx context.Context, tx Transaction, m model.AttendanceLog) (model.AttendanceLog, error) {
+	return r.CreateLog(ctx, tx, m) // Reuses existing CreateLog
+}
+
+func (r *attendanceRepository) GetEmployeeMetaList(ctx context.Context, tx Transaction) ([]dto.Meta, error) {
+	db, err := r.getDB(ctx, tx)
+	if err != nil {
+		return nil, err
+	}
+	var meta []dto.Meta
+	err = db.Raw(`
+		SELECT id::TEXT, full_name AS name
+		FROM employees
+		WHERE deleted_at IS NULL
+		ORDER BY full_name ASC
+	`).Scan(&meta).Error
+	return meta, err
 }
