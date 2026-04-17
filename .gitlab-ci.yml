@@ -27,6 +27,24 @@ build_hris_wafa_backend:
     paths:
       - hris_wafa_backend_build_job_id.txt
 
+build-migrate:
+  stage: build
+  image: docker:latest
+  services:
+    - docker:dind
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^v[0-9]{4}\.[0-9]{1,3}$/
+  before_script:
+    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" $CI_REGISTRY
+  script:
+    - echo "Building migration image..."
+    - docker build -f Dockerfile.migrate -t "$CI_REGISTRY_IMAGE/migrate:$TAG_IMAGE" .
+    - docker push "$CI_REGISTRY_IMAGE/migrate:$TAG_IMAGE"
+    - echo "$CI_JOB_ID" > migrate_build_job_id.txt
+  artifacts:  
+    paths:
+      - migrate_build_job_id.txt
+
 release:
   stage: release
   image: registry.gitlab.com/gitlab-org/release-cli:latest
