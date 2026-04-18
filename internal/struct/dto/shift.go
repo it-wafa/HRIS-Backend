@@ -103,3 +103,14 @@ type ScheduleListParams struct {
 	ShiftTemplateID *uint
 	IsActive        *bool
 }
+
+// TodayScheduleResponse — response cek jadwal kerja hari ini untuk pegawai
+type TodayScheduleResponse struct {
+	IsWorkingDay  bool    `json:"is_working_day"`
+	Reason        string  `json:"reason,omitempty"`
+	ShiftName     *string `json:"shift_name,omitempty"`
+	ClockInStart  *string `json:"clock_in_start,omitempty"`
+	ClockInEnd    *string `json:"clock_in_end,omitempty"`
+	ClockOutStart *string `json:"clock_out_start,omitempty"`
+	ClockOutEnd   *string `json:"clock_out_end,omitempty"`
+}

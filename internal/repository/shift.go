@@ -30,6 +30,12 @@ type ShiftRepository interface {
 	CreateSchedule(ctx context.Context, tx Transaction, m model.EmployeeSchedule) (model.EmployeeSchedule, error)
 	UpdateSchedule(ctx context.Context, tx Transaction, id uint, m model.EmployeeSchedule) (model.EmployeeSchedule, error)
 	DeleteSchedule(ctx context.Context, tx Transaction, id uint) error
+
+	// Today schedule check
+	GetTodayScheduleForEmployee(ctx context.Context, tx Transaction, employeeID uint, date string) (*dto.ShiftDayContext, error)
+	GetEmployeeBranchID(ctx context.Context, tx Transaction, employeeID uint) (*uint, error)
+	IsHoliday(ctx context.Context, tx Transaction, branchID *uint, date string) (bool, string, error)
+	GetApprovedLeave(ctx context.Context, tx Transaction, employeeID uint, date string) (*uint, error)
 }
 
 type shiftRepository struct {
@@ -371,3 +377,139 @@ func (r *shiftRepository) DeleteSchedule(ctx context.Context, tx Transaction, id
 	}
 	return nil
 }
+
+// ── Today Schedule Check ─────────────────────────────
+
+func (r *shiftRepository) GetTodayScheduleForEmployee(ctx context.Context, tx Transaction, employeeID uint, date string) (*dto.ShiftDayContext, error) {
+	db, err := r.getDB(ctx, tx)
+	if err != nil {
+		return nil, err
+	}
+
+	var ctx2 struct {
+		ScheduleID      uint    `db:"schedule_id"`
+		ShiftTemplateID uint    `db:"shift_template_id"`
+		ShiftName       string  `db:"shift_name"`
+		IsFlexible      bool    `db:"is_flexible"`
+		DayOfWeek       string  `db:"day_of_week"`
+		IsWorkingDay    bool    `db:"is_working_day"`
+		ClockInStart    *string `db:"clock_in_start"`
+		ClockInEnd      *string `db:"clock_in_end"`
+		ClockOutStart   *string `db:"clock_out_start"`
+		ClockOutEnd     *string `db:"clock_out_end"`
+	}
+
+	err = db.Raw(`
+		SELECT
+			es.id                              AS schedule_id,
+			st.id                              AS shift_template_id,
+			st.name                            AS shift_name,
+			st.is_flexible,
+			LOWER(TRIM(TO_CHAR($2::DATE, 'Day'))) AS day_of_week,
+			COALESCE(std.is_working_day, TRUE) AS is_working_day,
+			std.clock_in_start::TEXT           AS clock_in_start,
+			std.clock_in_end::TEXT             AS clock_in_end,
+			std.clock_out_start::TEXT          AS clock_out_start,
+			std.clock_out_end::TEXT            AS clock_out_end
+		FROM employee_schedules es
+		JOIN shift_templates st ON st.id = es.shift_template_id AND st.deleted_at IS NULL
+		LEFT JOIN shift_template_details std
+			ON std.shift_template_id = st.id
+			AND std.day_of_week = LOWER(TRIM(TO_CHAR($2::DATE, 'Day')))::day_of_week_enum
+			AND std.deleted_at IS NULL
+		WHERE es.employee_id = $1
+		  AND es.effective_date <= $2::DATE
+		  AND (es.end_date IS NULL OR es.end_date >= $2::DATE)
+		  AND es.is_active = TRUE
+		  AND es.deleted_at IS NULL
+		ORDER BY es.effective_date DESC
+		LIMIT 1
+	`, employeeID, date).Scan(&ctx2).Error
+	if err != nil {
+		return nil, err
+	}
+	if ctx2.ScheduleID == 0 {
+		return nil, nil
+	}
+
+	return &dto.ShiftDayContext{
+		ScheduleID:      ctx2.ScheduleID,
+		ShiftTemplateID: ctx2.ShiftTemplateID,
+		ShiftName:       ctx2.ShiftName,
+		IsFlexible:      ctx2.IsFlexible,
+		DayOfWeek:       ctx2.DayOfWeek,
+		IsWorkingDay:    ctx2.IsWorkingDay,
+		ClockInStart:    ctx2.ClockInStart,
+		ClockInEnd:      ctx2.ClockInEnd,
+		ClockOutStart:   ctx2.ClockOutStart,
+		ClockOutEnd:     ctx2.ClockOutEnd,
+	}, nil
+}
+
+func (r *shiftRepository) GetEmployeeBranchID(ctx context.Context, tx Transaction, employeeID uint) (*uint, error) {
+	db, err := r.getDB(ctx, tx)
+	if err != nil {
+		return nil, err
+	}
+	var branchID *uint
+	err = db.Raw(`SELECT branch_id FROM employees WHERE id = ? AND deleted_at IS NULL`, employeeID).Scan(&branchID).Error
+	return branchID, err
+}
+
+func (r *shiftRepository) IsHoliday(ctx context.Context, tx Transaction, branchID *uint, date string) (bool, string, error) {
+	db, err := r.getDB(ctx, tx)
+	if err != nil {
+		return false, "", err
+	}
+
+	var holiday struct {
+		Name string `db:"name"`
+	}
+
+	query := `
+		SELECT name FROM holidays
+		WHERE date = $1
+		  AND deleted_at IS NULL
+		  AND (branch_id IS NULL`
+	args := []interface{}{date}
+
+	if branchID != nil {
+		query += " OR branch_id = $2"
+		args = append(args, *branchID)
+	}
+	query += ") LIMIT 1"
+
+	if err := db.Raw(query, args...).Scan(&holiday).Error; err != nil {
+		return false, "", err
+	}
+	if holiday.Name == "" {
+		return false, "", nil
+	}
+	return true, holiday.Name, nil
+}
+
+func (r *shiftRepository) GetApprovedLeave(ctx context.Context, tx Transaction, employeeID uint, date string) (*uint, error) {
+	db, err := r.getDB(ctx, tx)
+	if err != nil {
+		return nil, err
+	}
+
+	var id uint
+	err = db.Raw(`
+		SELECT id FROM leave_requests
+		WHERE employee_id = ?
+		  AND status IN ('approved_hr', 'approved_leader')
+		  AND start_date <= ?::DATE
+		  AND end_date >= ?::DATE
+		  AND deleted_at IS NULL
+		LIMIT 1
+	`, employeeID, date, date).Scan(&id).Error
+	if err != nil {
+		return nil, err
+	}
+	if id == 0 {
+		return nil, nil
+	}
+	return &id, nil
+}
+

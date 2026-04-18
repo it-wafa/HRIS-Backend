@@ -173,3 +173,15 @@ func (h *ShiftHandler) DeleteSchedule(c *fiber.Ctx) error {
 	}
 	return c.JSON(dto.APIResponse{Status: true, StatusCode: 200, Message: "Schedule deleted"})
 }
+
+// CheckTodaySchedule — GET /schedules/my-today
+func (h *ShiftHandler) CheckTodaySchedule(c *fiber.Ctx) error {
+	account := getAccountFromCtx(c)
+
+	result, err := h.service.CheckTodaySchedule(c.Context(), account.EmployeeID)
+	if err != nil {
+		return respondError(c, err)
+	}
+	return c.JSON(dto.APIResponse{Status: true, StatusCode: 200, Message: "today schedule status", Data: result})
+}
+

@@ -50,24 +50,13 @@ func (s *mutabaahService) GetTodayStatus(ctx context.Context, employeeID uint) (
 		return dto.MutabaahTodayResponse{}, fmt.Errorf("get today mutabaah: %w", err)
 	}
 
-	// Cek apakah hari kerja (ada attendance log present/late)
-	attendLog, err := s.attendRepo.GetTodayLog(ctx, nil, employeeID, today)
-	if err != nil {
-		return dto.MutabaahTodayResponse{}, fmt.Errorf("get today attendance: %w", err)
-	}
-
-	isWorkingDay := attendLog != nil &&
-		(attendLog.Status == string(model.AttendancePresent) ||
-			attendLog.Status == string(model.AttendanceLate) ||
-			attendLog.Status == string(model.AttendanceBusinessTrip))
-
+	// Mutaba'ah bisa disubmit kapan saja pada hari kerja,
+	// tidak perlu sudah clock in terlebih dahulu
 	canSubmit := false
 	canCancel := false
 	reason := ""
 
-	if !isWorkingDay {
-		reason = "hanya bisa submit mutabaah pada hari kerja setelah clock in"
-	} else if log == nil {
+	if log == nil {
 		canSubmit = true
 	} else if log.IsSubmitted {
 		canCancel = true
@@ -80,7 +69,7 @@ func (s *mutabaahService) GetTodayStatus(ctx context.Context, employeeID uint) (
 		Log:          log,
 		CanSubmit:    canSubmit,
 		CanCancel:    canCancel,
-		IsWorkingDay: isWorkingDay,
+		IsWorkingDay: true,
 		Reason:       reason,
 	}, nil
 }
@@ -95,21 +84,14 @@ func (s *mutabaahService) Submit(ctx context.Context, employeeID uint, req dto.M
 		return dto.MutabaahLogResponse{}, fmt.Errorf("jumlah halaman tidak boleh negatif")
 	}
 
-	// 1. Validasi attendance hari ini
-	attendLog, err := s.attendRepo.GetTodayLog(ctx, nil, employeeID, today)
-	if err != nil {
-		return dto.MutabaahLogResponse{}, fmt.Errorf("get attendance log: %w", err)
-	}
-	if attendLog == nil {
-		return dto.MutabaahLogResponse{}, fmt.Errorf("anda belum melakukan clock in hari ini")
-	}
-	if attendLog.Status != string(model.AttendancePresent) &&
-		attendLog.Status != string(model.AttendanceLate) &&
-		attendLog.Status != string(model.AttendanceBusinessTrip) {
-		return dto.MutabaahLogResponse{}, fmt.Errorf("mutabaah hanya bisa disubmit pada hari kerja")
+	// Attendance log opsional — cek jika ada
+	attendLog, _ := s.attendRepo.GetTodayLog(ctx, nil, employeeID, today)
+	var attendLogID uint
+	if attendLog != nil {
+		attendLogID = attendLog.ID
 	}
 
-	// 2. Cek sudah submit belum
+	// Cek sudah submit belum
 	existing, err := s.repo.GetTodayLog(ctx, nil, employeeID, today)
 	if err != nil {
 		return dto.MutabaahLogResponse{}, fmt.Errorf("get mutabaah log: %w", err)
@@ -127,7 +109,7 @@ func (s *mutabaahService) Submit(ctx context.Context, employeeID uint, req dto.M
 		// Belum ada record — buat baru
 		logModel := model.MutabaahLog{
 			EmployeeID:      employeeID,
-			AttendanceLogID: attendLog.ID,
+			AttendanceLogID: attendLogID,
 			LogDate:         now,
 			TargetPages:     req.Pages,
 			IsSubmitted:     true,

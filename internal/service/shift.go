@@ -8,6 +8,7 @@ import (
 	"hris-backend/internal/repository"
 	"hris-backend/internal/struct/dto"
 	"hris-backend/internal/struct/model"
+	"hris-backend/internal/utils"
 	"hris-backend/internal/utils/data"
 )
 
@@ -27,6 +28,8 @@ type ShiftService interface {
 	CreateSchedule(ctx context.Context, req dto.CreateScheduleRequest) (dto.ScheduleResponse, error)
 	UpdateSchedule(ctx context.Context, id uint, req dto.UpdateScheduleRequest) (dto.ScheduleResponse, error)
 	DeleteSchedule(ctx context.Context, id uint) error
+	// Today schedule check
+	CheckTodaySchedule(ctx context.Context, employeeID uint) (dto.TodayScheduleResponse, error)
 }
 
 type shiftService struct {
@@ -282,6 +285,70 @@ func (s *shiftService) DeleteSchedule(ctx context.Context, id uint) error {
 		return fmt.Errorf("delete schedule: %w", err)
 	}
 	return nil
+}
+
+// ── Today Schedule Check ─────────────────────────────
+
+func (s *shiftService) CheckTodaySchedule(ctx context.Context, employeeID uint) (dto.TodayScheduleResponse, error) {
+	today := utils.TodayDate()
+
+	// 1. Get employee branch
+	branchID, err := s.repo.GetEmployeeBranchID(ctx, nil, employeeID)
+	if err != nil {
+		return dto.TodayScheduleResponse{}, fmt.Errorf("get branch: %w", err)
+	}
+
+	// 2. Check holiday
+	isHoliday, holidayName, err := s.repo.IsHoliday(ctx, nil, branchID, today)
+	if err != nil {
+		return dto.TodayScheduleResponse{}, fmt.Errorf("check holiday: %w", err)
+	}
+	if isHoliday {
+		return dto.TodayScheduleResponse{
+			IsWorkingDay: false,
+			Reason:       fmt.Sprintf("Hari libur: %s", holidayName),
+		}, nil
+	}
+
+	// 3. Check approved leave
+	leaveID, err := s.repo.GetApprovedLeave(ctx, nil, employeeID, today)
+	if err != nil {
+		return dto.TodayScheduleResponse{}, fmt.Errorf("check leave: %w", err)
+	}
+	if leaveID != nil {
+		return dto.TodayScheduleResponse{
+			IsWorkingDay: false,
+			Reason:       "Cuti disetujui",
+		}, nil
+	}
+
+	// 4. Check shift schedule
+	shift, err := s.repo.GetTodayScheduleForEmployee(ctx, nil, employeeID, today)
+	if err != nil {
+		return dto.TodayScheduleResponse{}, fmt.Errorf("get schedule: %w", err)
+	}
+	if shift == nil {
+		return dto.TodayScheduleResponse{
+			IsWorkingDay: false,
+			Reason:       "Tidak ada jadwal shift aktif",
+		}, nil
+	}
+	if !shift.IsWorkingDay {
+		return dto.TodayScheduleResponse{
+			IsWorkingDay: false,
+			Reason:       "Bukan hari kerja sesuai jadwal shift",
+			ShiftName:    &shift.ShiftName,
+		}, nil
+	}
+
+	return dto.TodayScheduleResponse{
+		IsWorkingDay:  true,
+		ShiftName:     &shift.ShiftName,
+		ClockInStart:  shift.ClockInStart,
+		ClockInEnd:    shift.ClockInEnd,
+		ClockOutStart: shift.ClockOutStart,
+		ClockOutEnd:   shift.ClockOutEnd,
+	}, nil
 }
 
 // ── Helper ────────────────────────────────────────────

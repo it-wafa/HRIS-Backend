@@ -29,6 +29,7 @@ func ShiftRoutes(app *fiber.App, db *gorm.DB) {
 
 	schedules := app.Group("/schedules")
 	{
+		schedules.Get("/my-today", middleware.RBACMiddleware(data.PERM_HomeEmployeeRead), h.CheckTodaySchedule)
 		schedules.Get("/", middleware.RBACMiddleware(data.PERM_TemplateShiftRead), h.ListSchedules)
 		schedules.Get("/:id", middleware.RBACMiddleware(data.PERM_TemplateShiftRead), h.DetailSchedule)
 		schedules.Post("/", middleware.RBACMiddleware(data.PERM_TemplateShiftCreate), h.CreateSchedule)
