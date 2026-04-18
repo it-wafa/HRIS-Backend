@@ -17,6 +17,9 @@ type MutabaahService interface {
 	Cancel(ctx context.Context, employeeID uint) (dto.MutabaahLogResponse, error)
 	GetAllLogs(ctx context.Context, params dto.MutabaahListParams) ([]dto.MutabaahLogResponse, error)
 	HRDCancel(ctx context.Context, id uint) (dto.MutabaahLogResponse, error)
+	GetDailyReport(ctx context.Context, date string) ([]dto.MutabaahDailyReport, error)
+	GetMonthlyReport(ctx context.Context, month, year int) ([]dto.MutabaahMonthlySummary, error)
+	GetCategoryReport(ctx context.Context, date string) ([]dto.MutabaahCategorySummary, error)
 }
 
 type mutabaahService struct {
@@ -234,4 +237,18 @@ func (s *mutabaahService) HRDCancel(ctx context.Context, id uint) (dto.MutabaahL
 	// need better GetByID in repo, but wait, MutabaahRepository doesn't have GetByID.
 	// Oh, I need to add GetByID to repo!
 	return dto.MutabaahLogResponse{}, nil
+}
+
+// ─── Reports ──────────────────────────────────────────────────────────────────
+
+func (s *mutabaahService) GetDailyReport(ctx context.Context, date string) ([]dto.MutabaahDailyReport, error) {
+	return s.repo.GetDailyReport(ctx, nil, date)
+}
+
+func (s *mutabaahService) GetMonthlyReport(ctx context.Context, month, year int) ([]dto.MutabaahMonthlySummary, error) {
+	return s.repo.GetMonthlyReport(ctx, nil, month, year)
+}
+
+func (s *mutabaahService) GetCategoryReport(ctx context.Context, date string) ([]dto.MutabaahCategorySummary, error) {
+	return s.repo.GetCategoryReport(ctx, nil, date)
 }

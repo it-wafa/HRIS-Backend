@@ -125,3 +125,31 @@ type MutabaahListParams struct {
 	DateTo      *string `query:"date_to"`
 	IsSubmitted *bool   `query:"is_submitted"`
 }
+
+type MutabaahDailyReport struct {
+	EmployeeID     uint    `json:"employee_id"`
+	EmployeeName   string  `json:"employee_name"`
+	EmployeeNumber string  `json:"employee_number"`
+	DepartmentName *string `json:"department_name"`
+	IsTrainer      bool    `json:"is_trainer"`
+	TargetPages    int     `json:"target_pages"`
+	IsSubmitted    bool    `json:"is_submitted"`
+	SubmittedAt    *string `json:"submitted_at"`
+}
+
+type MutabaahMonthlySummary struct {
+	EmployeeID           uint    `json:"employee_id"`
+	EmployeeName         string  `json:"employee_name"`
+	IsTrainer            bool    `json:"is_trainer"`
+	TotalWorkingDays     int     `json:"total_working_days"`
+	TotalSubmitted       int     `json:"total_submitted"`
+	CompliancePercentage float64 `json:"compliance_percentage"`
+}
+
+type MutabaahCategorySummary struct {
+	Category                 string  `json:"category"` // "trainer" | "non_trainer"
+	TotalEmployees           int     `json:"total_employees"`
+	TotalSubmittedToday      int     `json:"total_submitted_today"`
+	TotalNotSubmittedToday   int     `json:"total_not_submitted_today"`
+	AverageCompliance        float64 `json:"average_compliance"`
+}

@@ -20,6 +20,9 @@ type MutabaahRepository interface {
 		AttendanceLogID uint `db:"attendance_log_id"`
 	}, error)
 	BulkCreateMissingLogs(ctx context.Context, tx Transaction, logs []model.MutabaahLog) error
+	GetDailyReport(ctx context.Context, tx Transaction, date string) ([]dto.MutabaahDailyReport, error)
+	GetMonthlyReport(ctx context.Context, tx Transaction, month, year int) ([]dto.MutabaahMonthlySummary, error)
+	GetCategoryReport(ctx context.Context, tx Transaction, date string) ([]dto.MutabaahCategorySummary, error)
 }
 
 type mutabaahRepository struct {
@@ -182,4 +185,91 @@ func (r *mutabaahRepository) BulkCreateMissingLogs(ctx context.Context, tx Trans
 		return err
 	}
 	return db.Create(&logs).Error
+}
+
+func (r *mutabaahRepository) GetDailyReport(ctx context.Context, tx Transaction, date string) ([]dto.MutabaahDailyReport, error) {
+	db, err := r.getDB(ctx, tx)
+	if err != nil {
+		return nil, err
+	}
+
+	var results []dto.MutabaahDailyReport
+	query := `
+		SELECT
+			e.id AS employee_id,
+			e.full_name AS employee_name,
+			e.employee_number,
+			d.name AS department_name,
+			e.is_trainer,
+			COALESCE(ml.target_pages, 0) AS target_pages,
+			COALESCE(ml.is_submitted, false) AS is_submitted,
+			ml.submitted_at::TEXT AS submitted_at
+		FROM employees e
+		LEFT JOIN departments d ON d.id = e.department_id
+		LEFT JOIN mutabaah_logs ml ON ml.employee_id = e.id AND ml.log_date = ?::DATE AND ml.deleted_at IS NULL
+		WHERE e.deleted_at IS NULL
+		ORDER BY e.full_name ASC
+	`
+	err = db.Raw(query, date).Scan(&results).Error
+	return results, err
+}
+
+func (r *mutabaahRepository) GetMonthlyReport(ctx context.Context, tx Transaction, month, year int) ([]dto.MutabaahMonthlySummary, error) {
+	db, err := r.getDB(ctx, tx)
+	if err != nil {
+		return nil, err
+	}
+
+	var results []dto.MutabaahMonthlySummary
+	query := `
+		SELECT
+			e.id AS employee_id,
+			e.full_name AS employee_name,
+			e.is_trainer,
+			COUNT(CASE WHEN al.status IN ('present', 'late', 'business_trip') THEN 1 END) AS total_working_days,
+			COUNT(CASE WHEN ml.is_submitted = true THEN 1 END) AS total_submitted,
+			CASE 
+				WHEN COUNT(CASE WHEN al.status IN ('present', 'late', 'business_trip') THEN 1 END) > 0 
+				THEN (COUNT(CASE WHEN ml.is_submitted = true THEN 1 END)::FLOAT / COUNT(CASE WHEN al.status IN ('present', 'late', 'business_trip') THEN 1 END)) * 100
+				ELSE 0 
+			END AS compliance_percentage
+		FROM employees e
+		LEFT JOIN attendance_logs al ON al.employee_id = e.id 
+			AND EXTRACT(MONTH FROM al.attendance_date) = ? 
+			AND EXTRACT(YEAR FROM al.attendance_date) = ?
+			AND al.deleted_at IS NULL
+		LEFT JOIN mutabaah_logs ml ON ml.attendance_log_id = al.id AND ml.deleted_at IS NULL
+		WHERE e.deleted_at IS NULL
+		GROUP BY e.id, e.full_name, e.is_trainer
+		ORDER BY compliance_percentage DESC, e.full_name ASC
+	`
+	err = db.Raw(query, month, year).Scan(&results).Error
+	return results, err
+}
+
+func (r *mutabaahRepository) GetCategoryReport(ctx context.Context, tx Transaction, date string) ([]dto.MutabaahCategorySummary, error) {
+	db, err := r.getDB(ctx, tx)
+	if err != nil {
+		return nil, err
+	}
+
+	var results []dto.MutabaahCategorySummary
+	query := `
+		SELECT
+			CASE WHEN e.is_trainer THEN 'trainer' ELSE 'non_trainer' END AS category,
+			COUNT(e.id) AS total_employees,
+			COUNT(CASE WHEN ml.is_submitted = true THEN 1 END) AS total_submitted_today,
+			COUNT(e.id) - COUNT(CASE WHEN ml.is_submitted = true THEN 1 END) AS total_not_submitted_today,
+			CASE 
+				WHEN COUNT(e.id) > 0 
+				THEN (COUNT(CASE WHEN ml.is_submitted = true THEN 1 END)::FLOAT / COUNT(e.id)) * 100
+				ELSE 0
+			END AS average_compliance
+		FROM employees e
+		LEFT JOIN mutabaah_logs ml ON ml.employee_id = e.id AND ml.log_date = ?::DATE AND ml.deleted_at IS NULL
+		WHERE e.deleted_at IS NULL
+		GROUP BY e.is_trainer
+	`
+	err = db.Raw(query, date).Scan(&results).Error
+	return results, err
 }

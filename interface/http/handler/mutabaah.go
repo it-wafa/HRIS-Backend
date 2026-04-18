@@ -113,3 +113,60 @@ func (h *MutabaahHandler) HRDCancel(c *fiber.Ctx) error {
 		Data:       result,
 	})
 }
+
+func (h *MutabaahHandler) GetDailyReport(c *fiber.Ctx) error {
+	date := c.Query("date")
+	if date == "" {
+		return respondBadRequest(c, "query date wajib diisi (format YYYY-MM-DD)")
+	}
+
+	result, err := h.service.GetDailyReport(c.Context(), date)
+	if err != nil {
+		return respondError(c, err)
+	}
+	return c.JSON(dto.APIResponse{
+		Status:     true,
+		StatusCode: 200,
+		Message:    "mutabaah daily report",
+		Data:       result,
+	})
+}
+
+func (h *MutabaahHandler) GetMonthlyReport(c *fiber.Ctx) error {
+	month := c.QueryInt("month")
+	year := c.QueryInt("year")
+	if month <= 0 || month > 12 || year <= 0 {
+		return respondBadRequest(c, "query month dan year wajib diisi dan valid")
+	}
+
+	result, err := h.service.GetMonthlyReport(c.Context(), month, year)
+	if err != nil {
+		return respondError(c, err)
+	}
+	return c.JSON(dto.APIResponse{
+		Status:     true,
+		StatusCode: 200,
+		Message:    "mutabaah monthly report",
+		Data:       result,
+	})
+}
+
+// GetCategoryReport — admin: perbandingan kategori mutabaah (trainer vs non trainer)
+// GET /mutabaah/report/category?date=2024-01-01
+func (h *MutabaahHandler) GetCategoryReport(c *fiber.Ctx) error {
+	date := c.Query("date")
+	if date == "" {
+		return respondBadRequest(c, "query date wajib diisi (format YYYY-MM-DD)")
+	}
+
+	result, err := h.service.GetCategoryReport(c.Context(), date)
+	if err != nil {
+		return respondError(c, err)
+	}
+	return c.JSON(dto.APIResponse{
+		Status:     true,
+		StatusCode: 200,
+		Message:    "mutabaah category report",
+		Data:       result,
+	})
+}
