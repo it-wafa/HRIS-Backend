@@ -74,6 +74,32 @@ func (h *DailyReportHandler) Create(c *fiber.Ctx) error {
 	})
 }
 
+// Update — PUT /daily-reports/:id
+func (h *DailyReportHandler) Update(c *fiber.Ctx) error {
+	id, err := c.ParamsInt("id")
+	if err != nil {
+		return respondBadRequest(c, "invalid daily report ID")
+	}
+
+	var req dto.UpdateDailyReportRequest
+	if err := c.BodyParser(&req); err != nil {
+		return respondBadRequest(c, "invalid request body")
+	}
+
+	account := getAccountFromCtx(c)
+	res, err := h.service.Update(c.Context(), uint(id), account.EmployeeID, req)
+	if err != nil {
+		return respondError(c, err)
+	}
+
+	return c.JSON(dto.APIResponse{
+		Status:     true,
+		StatusCode: 200,
+		Message:    "daily report updated",
+		Data:       res,
+	})
+}
+
 // Delete — DELETE /daily-reports/:id
 func (h *DailyReportHandler) Delete(c *fiber.Ctx) error {
 	id, err := c.ParamsInt("id")

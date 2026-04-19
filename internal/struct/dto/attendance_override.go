@@ -4,14 +4,14 @@ import "time"
 
 type CreateOverrideRequest struct {
 	AttendanceLogID   uint    `json:"attendance_log_id"`
-	OverrideType      string  `json:"override_type"` // clock_in|clock_out|full_day
+	OverrideType      string  `json:"override_type"`
 	CorrectedClockIn  *string `json:"corrected_clock_in"`
 	CorrectedClockOut *string `json:"corrected_clock_out"`
 	Reason            string  `json:"reason"`
 }
 
 type UpdateOverrideStatusRequest struct {
-	Status        string  `json:"status"` // approved|rejected
+	Status        string  `json:"status"`
 	ApproverNotes *string `json:"approver_notes"`
 }
 
@@ -37,6 +37,7 @@ type AttendanceOverrideResponse struct {
 	Status            string     `json:"status"`
 	CreatedAt         time.Time  `json:"created_at"`
 	UpdatedAt         *time.Time `json:"updated_at"`
+	DeletedAt         *time.Time `json:"deleted_at"`
 }
 
 type CreateManualAttendanceRequest struct {

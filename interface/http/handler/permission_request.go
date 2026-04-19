@@ -15,7 +15,7 @@ func NewPermissionRequestHandler(service service.PermissionRequestService) *Perm
 	return &PermissionRequestHandler{service: service}
 }
 
-// Metadata — GET /permission-requests/metadata  (or shared /requests/metadata)
+// Metadata — GET /permission-requests/metadata
 func (h *PermissionRequestHandler) Metadata(c *fiber.Ctx) error {
 	res, err := h.service.GetMetadata(c.Context())
 	if err != nil {

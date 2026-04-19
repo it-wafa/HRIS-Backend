@@ -19,7 +19,7 @@ func NewDashboardHandler(service service.DashboardService) *DashboardHandler {
 func (h *DashboardHandler) GetEmployeeDashboard(c *fiber.Ctx) error {
 	account := getAccountFromCtx(c)
 
-	res, err := h.service.GetEmployeeDashboard(c.Context(), account.EmployeeID)
+	res, err := h.service.GetEmployeeDashboard(c.Context(), account.EmployeeID, account.IsTrainer)
 	if err != nil {
 		return respondError(c, err)
 	}

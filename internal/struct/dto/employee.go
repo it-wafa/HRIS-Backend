@@ -66,6 +66,13 @@ type UpdateEmployeeRequest struct {
 	IsActive bool `json:"is_active"`
 }
 
+type EmployeeListParams struct {
+	BranchID     *uint   `query:"branch_id"`
+	DepartmentID *uint   `query:"department_id"`
+	IsActive     *bool   `query:"is_active"`
+	Search       *string `query:"search"`
+}
+
 type EmployeeMetadata struct {
 	BranchMeta        []Meta `json:"branch_meta"`
 	DepartmentMeta    []Meta `json:"department_meta"`

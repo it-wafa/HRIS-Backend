@@ -19,6 +19,7 @@ type MutabaahRepository interface {
 		EmployeeID      uint `db:"employee_id"`
 		AttendanceLogID uint `db:"attendance_log_id"`
 	}, error)
+	GetByID(ctx context.Context, tx Transaction, id uint) (*dto.MutabaahLogResponse, error)
 	BulkCreateMissingLogs(ctx context.Context, tx Transaction, logs []model.MutabaahLog) error
 	GetDailyReport(ctx context.Context, tx Transaction, date string) ([]dto.MutabaahDailyReport, error)
 	GetMonthlyReport(ctx context.Context, tx Transaction, month, year int) ([]dto.MutabaahMonthlySummary, error)
@@ -57,7 +58,10 @@ func (r *mutabaahRepository) GetTodayLog(ctx context.Context, tx Transaction, em
 			ml.employee_id,
 			e.full_name    AS employee_name,
 			ml.log_date::TEXT AS log_date,
-			ml.target_pages,
+			CASE 
+				WHEN e.is_trainer THEN 10
+				ELSE 5
+			END AS target_pages,
 			ml.is_submitted,
 			ml.submitted_at,
 			ml.is_auto_generated,
@@ -88,7 +92,10 @@ func (r *mutabaahRepository) GetAllLogs(ctx context.Context, tx Transaction, par
 			ml.employee_id,
 			e.full_name    AS employee_name,
 			ml.log_date::TEXT AS log_date,
-			ml.target_pages,
+			CASE 
+				WHEN e.is_trainer THEN 10
+				ELSE 5
+			END AS target_pages,
 			ml.is_submitted,
 			ml.submitted_at,
 			ml.is_auto_generated,
@@ -104,13 +111,13 @@ func (r *mutabaahRepository) GetAllLogs(ctx context.Context, tx Transaction, par
 		query += " AND ml.employee_id = ?"
 		args = append(args, *params.EmployeeID)
 	}
-	if params.DateFrom != nil {
+	if params.StartDate != nil {
 		query += " AND ml.log_date >= ?"
-		args = append(args, *params.DateFrom)
+		args = append(args, *params.StartDate)
 	}
-	if params.DateTo != nil {
+	if params.EndDate != nil {
 		query += " AND ml.log_date <= ?"
-		args = append(args, *params.DateTo)
+		args = append(args, *params.EndDate)
 	}
 	if params.IsSubmitted != nil {
 		query += " AND ml.is_submitted = ?"
@@ -176,6 +183,40 @@ func (r *mutabaahRepository) GetEmployeesWithAttendanceWithoutMutabaah(ctx conte
 	return rows, err
 }
 
+func (r *mutabaahRepository) GetByID(ctx context.Context, tx Transaction, id uint) (*dto.MutabaahLogResponse, error) {
+	db, err := r.getDB(ctx, tx)
+	if err != nil {
+		return nil, err
+	}
+	var log dto.MutabaahLogResponse
+	err = db.Raw(`
+		SELECT
+			ml.id,
+			ml.employee_id,
+			e.full_name    AS employee_name,
+			ml.log_date::TEXT AS log_date,
+			CASE 
+				WHEN e.is_trainer THEN 10
+				ELSE 5
+			END AS target_pages,
+			ml.is_submitted,
+			ml.submitted_at,
+			ml.is_auto_generated,
+			ml.created_at,
+			ml.updated_at
+		FROM mutabaah_logs ml
+		JOIN employees e ON e.id = ml.employee_id
+		WHERE ml.id = ? AND ml.deleted_at IS NULL
+	`, id).Scan(&log).Error
+	if err != nil {
+		return nil, err
+	}
+	if log.ID == 0 {
+		return nil, nil
+	}
+	return &log, nil
+}
+
 func (r *mutabaahRepository) BulkCreateMissingLogs(ctx context.Context, tx Transaction, logs []model.MutabaahLog) error {
 	if len(logs) == 0 {
 		return nil
@@ -200,8 +241,10 @@ func (r *mutabaahRepository) GetDailyReport(ctx context.Context, tx Transaction,
 			e.full_name AS employee_name,
 			e.employee_number,
 			d.name AS department_name,
-			e.is_trainer,
-			COALESCE(ml.target_pages, 0) AS target_pages,
+			CASE 
+				WHEN e.is_trainer THEN 10
+				ELSE 5
+			END AS target_pages,
 			COALESCE(ml.is_submitted, false) AS is_submitted,
 			ml.submitted_at::TEXT AS submitted_at
 		FROM employees e

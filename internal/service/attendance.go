@@ -14,28 +14,14 @@ import (
 )
 
 type AttendanceService interface {
-	// Presign — generate upload URL sebelum clock in/out
 	PresignClockPhoto(ctx context.Context, employeeID uint, action string) (dto.AttendancePresignResponse, error)
-	// Signed download URL untuk foto
 	GetPhotoURL(ctx context.Context, objectKey string) (string, error)
-
-	// Today status
 	GetTodayStatus(ctx context.Context, employeeID uint) (dto.AttendanceTodayResponse, error)
-
-	// Clock in / out
 	ClockIn(ctx context.Context, employeeID uint, req dto.ClockInRequest) (dto.AttendanceLogResponse, error)
 	ClockOut(ctx context.Context, employeeID uint, req dto.ClockOutRequest) (dto.AttendanceLogResponse, error)
-
-	// Admin: list semua
 	GetAllLogs(ctx context.Context, params dto.AttendanceListParams) ([]dto.AttendanceLogResponse, error)
-
-	// Meta
 	GetMetadata(ctx context.Context) (dto.AttendanceMetadata, error)
-
-	// Manual Attendance
 	CreateManualAttendance(ctx context.Context, employeeID uint, req dto.CreateManualAttendanceRequest) (dto.AttendanceLogResponse, error)
-
-	// Override
 	GetAllOverrides(ctx context.Context, params dto.OverrideListParams) ([]dto.AttendanceOverrideResponse, error)
 	GetOverrideByID(ctx context.Context, id uint) (dto.AttendanceOverrideResponse, error)
 	CreateOverride(ctx context.Context, employeeID uint, req dto.CreateOverrideRequest) (dto.AttendanceOverrideResponse, error)
@@ -55,8 +41,6 @@ func NewAttendanceService(
 ) AttendanceService {
 	return &attendanceService{repo: repo, txManager: txManager, minio: minio}
 }
-
-// ─── Presign ──────────────────────────────────────────────────────────────────
 
 func (s *attendanceService) PresignClockPhoto(ctx context.Context, employeeID uint, action string) (dto.AttendancePresignResponse, error) {
 	if action != "clock_in" && action != "clock_out" {
@@ -89,8 +73,6 @@ func (s *attendanceService) GetPhotoURL(ctx context.Context, objectKey string) (
 	}
 	return url, nil
 }
-
-// ─── Today Status ─────────────────────────────────────────────────────────────
 
 func (s *attendanceService) GetTodayStatus(ctx context.Context, employeeID uint) (dto.AttendanceTodayResponse, error) {
 	today := utils.TodayDate()
@@ -154,8 +136,6 @@ func (s *attendanceService) GetTodayStatus(ctx context.Context, employeeID uint)
 	}
 	return resp, nil
 }
-
-// ─── Clock In ─────────────────────────────────────────────────────────────────
 
 func (s *attendanceService) ClockIn(ctx context.Context, employeeID uint, req dto.ClockInRequest) (dto.AttendanceLogResponse, error) {
 	today := utils.TodayDate()
@@ -234,7 +214,6 @@ func (s *attendanceService) ClockIn(ctx context.Context, employeeID uint, req dt
 		}
 	}
 
-	// 6. Hitung keterlambatan
 	lateMinutes := 0
 	status := model.AttendancePresent
 
@@ -313,8 +292,6 @@ func (s *attendanceService) ClockIn(ctx context.Context, employeeID uint, req dt
 	}
 	return *resp, nil
 }
-
-// ─── Clock Out ────────────────────────────────────────────────────────────────
 
 func (s *attendanceService) ClockOut(ctx context.Context, employeeID uint, req dto.ClockOutRequest) (dto.AttendanceLogResponse, error) {
 	today := utils.TodayDate()
@@ -444,13 +421,9 @@ func (s *attendanceService) ClockOut(ctx context.Context, employeeID uint, req d
 	return *resp, nil
 }
 
-// ─── Admin ────────────────────────────────────────────────────────────────────
-
 func (s *attendanceService) GetAllLogs(ctx context.Context, params dto.AttendanceListParams) ([]dto.AttendanceLogResponse, error) {
 	return s.repo.GetAllLogs(ctx, nil, params)
 }
-
-// ─── Metadata ─────────────────────────────────────────────────────────────────
 
 func (s *attendanceService) GetMetadata(ctx context.Context) (dto.AttendanceMetadata, error) {
 	empMeta, err := s.repo.GetEmployeeMetaList(ctx, nil)
@@ -465,8 +438,6 @@ func (s *attendanceService) GetMetadata(ctx context.Context) (dto.AttendanceMeta
 		EmployeeMeta:     empMeta,
 	}, nil
 }
-
-// ─── Manual Attendance & Overrides ────────────────────────────────────────────
 
 func (s *attendanceService) CreateManualAttendance(ctx context.Context, employeeID uint, req dto.CreateManualAttendanceRequest) (dto.AttendanceLogResponse, error) {
 	existing, err := s.repo.GetTodayLog(ctx, nil, req.EmployeeID, req.AttendanceDate)
@@ -483,7 +454,7 @@ func (s *attendanceService) CreateManualAttendance(ctx context.Context, employee
 	}
 
 	clockMethod := model.ClockMethodManual
-	status := model.AttendancePresent // default fallbacks
+	status := model.AttendancePresent
 	lateMinutes := 0
 
 	tIn, _ := utils.ParseTimeString(req.ClockInAt, req.AttendanceDate)
@@ -569,19 +540,15 @@ func (s *attendanceService) CreateOverride(ctx context.Context, employeeID uint,
 
 	var parsedIn, parsedOut *time.Time
 	if req.CorrectedClockIn != nil {
-		if log != nil {
-			t, e := utils.ParseTimeString(*req.CorrectedClockIn, log.AttendanceDate)
-			if e == nil {
-				parsedIn = &t
-			}
+		t, e := utils.ParseTimeString(*req.CorrectedClockIn, log.AttendanceDate)
+		if e == nil {
+			parsedIn = &t
 		}
 	}
 	if req.CorrectedClockOut != nil {
-		if log != nil {
-			t, e := utils.ParseTimeString(*req.CorrectedClockOut, log.AttendanceDate)
-			if e == nil {
-				parsedOut = &t
-			}
+		t, e := utils.ParseTimeString(*req.CorrectedClockOut, log.AttendanceDate)
+		if e == nil {
+			parsedOut = &t
 		}
 	}
 

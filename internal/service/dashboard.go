@@ -10,7 +10,7 @@ import (
 )
 
 type DashboardService interface {
-	GetEmployeeDashboard(ctx context.Context, accountID uint) (dto.EmployeeDashboardResponse, error)
+	GetEmployeeDashboard(ctx context.Context, accountID uint, isTrainer bool) (dto.EmployeeDashboardResponse, error)
 	GetHRDDashboard(ctx context.Context, hrID uint) (dto.HRDDashboardResponse, error)
 }
 
@@ -32,16 +32,16 @@ func NewDashboardService(
 	}
 }
 
-func (s *dashboardService) GetEmployeeDashboard(ctx context.Context, employeeID uint) (dto.EmployeeDashboardResponse, error) {
+func (s *dashboardService) GetEmployeeDashboard(ctx context.Context, employeeID uint, isTrainer bool) (dto.EmployeeDashboardResponse, error) {
 	today := utils.TodayDate()
 	now := time.Now()
 	year, month, _ := now.Date()
 
-	// 1. Today attendance status — sesuai kontrak frontend TodayAttendanceStatus
+	// 1. Today attendance status
 	todayStatus, _ := s.dashboardRepo.GetTodayAttendanceStatus(ctx, employeeID, today)
 
 	// 2. Today mutabaah status
-	mutabaahLog, _ := s.mutabaahRepo.GetTodayLog(ctx, nil, employeeID, today)
+	mutabaahTodayStatus := s.buildMutabaahTodayStatus(ctx, employeeID, isTrainer, today)
 
 	// 3. Monthly summary
 	monthlySummary, _ := s.dashboardRepo.GetMonthlyAttendanceSummary(ctx, employeeID, year, int(month))
@@ -52,7 +52,6 @@ func (s *dashboardService) GetEmployeeDashboard(ctx context.Context, employeeID 
 	// 5. Pending requests
 	pendingRequests, _ := s.dashboardRepo.GetPendingRequests(ctx, employeeID)
 
-	// Pastikan slice tidak nil agar JSON menghasilkan [] bukan null
 	if leaveBalances == nil {
 		leaveBalances = []dto.LeaveBalanceSummaryDTO{}
 	}
@@ -62,11 +61,58 @@ func (s *dashboardService) GetEmployeeDashboard(ctx context.Context, employeeID 
 
 	return dto.EmployeeDashboardResponse{
 		Today:           todayStatus,
-		MutabaahToday:   mutabaahLog,
+		MutabaahToday:   mutabaahTodayStatus,
 		MonthlySummary:  monthlySummary,
 		LeaveBalances:   leaveBalances,
 		PendingRequests: pendingRequests,
 	}, nil
+}
+
+func (s *dashboardService) buildMutabaahTodayStatus(ctx context.Context, employeeID uint, isTrainer bool, today string) *dto.MutabaahTodayStatus {
+	mutabaahLog, err := s.mutabaahRepo.GetTodayLog(ctx, nil, employeeID, today)
+	if err != nil {
+		return &dto.MutabaahTodayStatus{
+			HasRecord:   false,
+			IsSubmitted: false,
+		}
+	}
+
+	if mutabaahLog == nil {
+		targetPages := 0
+		if isTrainer {
+			targetPages = 10
+		} else {
+			targetPages = 5
+		}
+		attendLog, _ := s.attendRepo.GetTodayLog(ctx, nil, employeeID, today)
+		status := &dto.MutabaahTodayStatus{
+			HasRecord:   false,
+			IsSubmitted: false,
+			TargetPages: targetPages,
+		}
+		if attendLog != nil {
+			status.AttendanceLogID = &attendLog.ID
+		}
+		return status
+	}
+
+	var submittedAt *string
+	if mutabaahLog.SubmittedAt != nil {
+		formatted := mutabaahLog.SubmittedAt.Format("2006-01-02T15:04:05Z")
+		submittedAt = &formatted
+	}
+
+	mutabaahLogID := mutabaahLog.ID
+	attendLogID := mutabaahLog.AttendanceLogID
+
+	return &dto.MutabaahTodayStatus{
+		HasRecord:       true,
+		IsSubmitted:     mutabaahLog.IsSubmitted,
+		SubmittedAt:     submittedAt,
+		TargetPages:     mutabaahLog.TargetPages,
+		MutabaahLogID:   &mutabaahLogID,
+		AttendanceLogID: &attendLogID,
+	}
 }
 
 func (s *dashboardService) GetHRDDashboard(ctx context.Context, hrID uint) (dto.HRDDashboardResponse, error) {
@@ -79,7 +125,6 @@ func (s *dashboardService) GetHRDDashboard(ctx context.Context, hrID uint) (dto.
 	notClockedIn, _ := s.dashboardRepo.GetNotClockedIn(ctx, today)
 	expiring, _ := s.dashboardRepo.GetExpiringContracts(ctx, 30)
 
-	// Pastikan slice tidak nil agar JSON menghasilkan [] bukan null
 	if queue == nil {
 		queue = []dto.ApprovalQueueItemDTO{}
 	}

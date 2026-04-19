@@ -9,6 +9,15 @@ type TodayAttendanceStatus struct {
 	LateMinutes   int     `json:"late_minutes"`
 }
 
+type MutabaahTodayStatus struct {
+	HasRecord       bool    `json:"has_record"`
+	IsSubmitted     bool    `json:"is_submitted"`
+	SubmittedAt     *string `json:"submitted_at"`
+	TargetPages     int     `json:"target_pages"`
+	MutabaahLogID   *uint   `json:"mutabaah_log_id"`
+	AttendanceLogID *uint   `json:"attendance_log_id"`
+}
+
 type AttendanceSummaryDTO struct {
 	TotalPresent      int `json:"total_present"`
 	TotalLate         int `json:"total_late"`
@@ -34,10 +43,9 @@ type PendingRequestDTO struct {
 	Status    string `json:"status"`
 }
 
-// EmployeeDashboardResponse — sesuai kontrak frontend EmployeeDashboardData (§13.1)
 type EmployeeDashboardResponse struct {
 	Today           TodayAttendanceStatus    `json:"today"`
-	MutabaahToday   interface{}              `json:"mutabaah_today"`
+	MutabaahToday   *MutabaahTodayStatus     `json:"mutabaah_today"`
 	MonthlySummary  AttendanceSummaryDTO     `json:"monthly_summary"`
 	LeaveBalances   []LeaveBalanceSummaryDTO `json:"leave_balances"`
 	PendingRequests []PendingRequestDTO      `json:"pending_requests"`
@@ -91,7 +99,6 @@ type ExpiringContractDTO struct {
 	DaysRemaining  int    `json:"days_remaining"`
 }
 
-// HRDDashboardResponse — sesuai kontrak frontend HRDDashboardData (§13.2)
 type HRDDashboardResponse struct {
 	ApprovalQueue     []ApprovalQueueItemDTO   `json:"approval_queue"`
 	ApprovalCounts    ApprovalCountsDTO        `json:"approval_counts"`

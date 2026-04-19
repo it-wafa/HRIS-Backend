@@ -15,8 +15,7 @@ func NewMutabaahHandler(service service.MutabaahService) *MutabaahHandler {
 	return &MutabaahHandler{service: service}
 }
 
-// GetTodayStatus — status mutabaah hari ini untuk pegawai yang login
-// GET /mutabaah/today
+// GetTodayStatus — GET /mutabaah/today
 func (h *MutabaahHandler) GetTodayStatus(c *fiber.Ctx) error {
 	account := getAccountFromCtx(c)
 
@@ -32,8 +31,7 @@ func (h *MutabaahHandler) GetTodayStatus(c *fiber.Ctx) error {
 	})
 }
 
-// Submit — submit mutabaah hari ini
-// POST /mutabaah/submit
+// Submit — POST /mutabaah/submit
 func (h *MutabaahHandler) Submit(c *fiber.Ctx) error {
 	account := getAccountFromCtx(c)
 
@@ -41,11 +39,11 @@ func (h *MutabaahHandler) Submit(c *fiber.Ctx) error {
 	if err := c.BodyParser(&req); err != nil {
 		return respondBadRequest(c, "invalid request body")
 	}
-	if req.Pages < 0 {
-		return respondBadRequest(c, "pages tidak boleh negatif")
+	if req.AttendanceLogID == 0 {
+		return respondBadRequest(c, "attendance_log_id is required")
 	}
 
-	result, err := h.service.Submit(c.Context(), account.EmployeeID, req)
+	result, err := h.service.Submit(c.Context(), account.EmployeeID, account.IsTrainer, req)
 	if err != nil {
 		return respondError(c, err)
 	}
@@ -57,12 +55,16 @@ func (h *MutabaahHandler) Submit(c *fiber.Ctx) error {
 	})
 }
 
-// Cancel — batalkan submit mutabaah hari ini
-// POST /mutabaah/cancel
+// Cancel — POST /mutabaah/cancel
 func (h *MutabaahHandler) Cancel(c *fiber.Ctx) error {
 	account := getAccountFromCtx(c)
 
-	result, err := h.service.Cancel(c.Context(), account.EmployeeID)
+	var req dto.MutabaahCancelRequest
+	if err := c.BodyParser(&req); err != nil {
+		return respondBadRequest(c, "invalid request body")
+	}
+
+	result, err := h.service.Cancel(c.Context(), account.EmployeeID, req)
 	if err != nil {
 		return respondError(c, err)
 	}
@@ -74,8 +76,7 @@ func (h *MutabaahHandler) Cancel(c *fiber.Ctx) error {
 	})
 }
 
-// List — admin: daftar semua mutabaah
-// GET /mutabaah
+// List — GET /mutabaah
 func (h *MutabaahHandler) List(c *fiber.Ctx) error {
 	var params dto.MutabaahListParams
 	if err := c.QueryParser(&params); err != nil {
@@ -94,8 +95,7 @@ func (h *MutabaahHandler) List(c *fiber.Ctx) error {
 	})
 }
 
-// HRDCancel — admin: batalkan laporan mutabaah yang telah disubmit
-// PUT /mutabaah/:id/cancel
+// HRDCancel — PUT /mutabaah/:id/cancel
 func (h *MutabaahHandler) HRDCancel(c *fiber.Ctx) error {
 	id, err := c.ParamsInt("id")
 	if err != nil {
@@ -151,8 +151,7 @@ func (h *MutabaahHandler) GetMonthlyReport(c *fiber.Ctx) error {
 	})
 }
 
-// GetCategoryReport — admin: perbandingan kategori mutabaah (trainer vs non trainer)
-// GET /mutabaah/report/category?date=2024-01-01
+// GetCategoryReport — GET /mutabaah/report/category?date=2024-01-01
 func (h *MutabaahHandler) GetCategoryReport(c *fiber.Ctx) error {
 	date := c.Query("date")
 	if date == "" {

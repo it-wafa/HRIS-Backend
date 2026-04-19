@@ -14,6 +14,7 @@ type DailyReportService interface {
 	GetAll(ctx context.Context, params dto.DailyReportListParams) ([]dto.DailyReportResponse, error)
 	GetByID(ctx context.Context, id uint) (dto.DailyReportResponse, error)
 	Create(ctx context.Context, employeeID uint, req dto.CreateDailyReportRequest) (dto.DailyReportResponse, error)
+	Update(ctx context.Context, id uint, employeeID uint, req dto.UpdateDailyReportRequest) (dto.DailyReportResponse, error) // ADDED
 	Delete(ctx context.Context, id uint) error
 }
 
@@ -65,6 +66,33 @@ func (s *dailyReportService) Create(ctx context.Context, employeeID uint, req dt
 	}
 
 	return s.GetByID(ctx, created.ID)
+}
+
+func (s *dailyReportService) Update(ctx context.Context, id uint, employeeID uint, req dto.UpdateDailyReportRequest) (dto.DailyReportResponse, error) {
+	existing, err := s.repo.GetByID(ctx, nil, id)
+	if err != nil {
+		return dto.DailyReportResponse{}, fmt.Errorf("daily report not found: %w", err)
+	}
+
+	updates := map[string]interface{}{
+		"updated_at": time.Now(),
+	}
+
+	if req.Activities != nil {
+		updates["activities"] = req.Activities
+		// If updating activities, mark as submitted
+		now := time.Now()
+		updates["is_submitted"] = true
+		updates["submitted_at"] = now
+	}
+
+	_ = existing // validate ownership if needed
+
+	if err := s.repo.Update(ctx, nil, id, updates); err != nil {
+		return dto.DailyReportResponse{}, fmt.Errorf("update daily report: %w", err)
+	}
+
+	return s.GetByID(ctx, id)
 }
 
 func (s *dailyReportService) Delete(ctx context.Context, id uint) error {

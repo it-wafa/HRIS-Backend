@@ -218,13 +218,13 @@ func (r *attendanceRepository) GetAllLogs(ctx context.Context, tx Transaction, p
 		query += " AND al.employee_id = ?"
 		args = append(args, *params.EmployeeID)
 	}
-	if params.DateFrom != nil {
+	if params.StartDate != nil {
 		query += " AND al.attendance_date >= ?"
-		args = append(args, *params.DateFrom)
+		args = append(args, *params.StartDate)
 	}
-	if params.DateTo != nil {
+	if params.EndDate != nil {
 		query += " AND al.attendance_date <= ?"
-		args = append(args, *params.DateTo)
+		args = append(args, *params.EndDate)
 	}
 	if params.Status != nil {
 		query += " AND al.status = ?"

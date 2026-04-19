@@ -46,7 +46,7 @@ func (s *permissionRequestService) GetMetadata(ctx context.Context) (dto.Request
 	return dto.RequestMetadata{
 		PermissionTypeMeta: data.PermissionTypeMeta,
 		WorkLocationMeta:   data.WorkLocationMeta,
-		StatusMeta:         data.LeaveRequestStatusMeta, // reusing pending/approved/rejected logic
+		StatusMeta:         data.LeaveRequestStatusMeta,
 		EmployeeMeta:       empMeta,
 	}, nil
 }
@@ -69,25 +69,12 @@ func (s *permissionRequestService) Create(ctx context.Context, employeeID uint, 
 		return dto.PermissionRequestResponse{}, fmt.Errorf("invalid date format: %w", err)
 	}
 
-	startT, err := parseTimeStringForReq(req.StartTime, req.Date)
-	if err != nil {
-		return dto.PermissionRequestResponse{}, fmt.Errorf("invalid start time")
-	}
-
-	endT, err := parseTimeStringForReq(req.EndTime, req.Date)
-	if err != nil {
-		return dto.PermissionRequestResponse{}, fmt.Errorf("invalid end time")
-	}
-
-	startTStr := startT.Format("15:04:05")
-	endTStr := endT.Format("15:04:05")
-
 	m := model.PermissionRequest{
 		EmployeeID:     employeeID,
 		Date:           parsedDate,
 		PermissionType: model.PermissionTypeEnum(req.PermissionType),
-		LeaveTime:      &startTStr,
-		ReturnTime:     &endTStr,
+		LeaveTime:      req.LeaveTime, 
+		ReturnTime:     req.ReturnTime,
 		Reason:         req.Reason,
 		DocumentURL:    req.DocumentURL,
 		Status:         model.RequestStatusPending,
@@ -121,12 +108,11 @@ func (s *permissionRequestService) UpdateStatus(ctx context.Context, employeeID 
 	}
 
 	if req.Status == "approved" {
-		// Update attendance log
 		log, _ := s.attendRepo.GetTodayLog(ctx, tx, perm.EmployeeID, perm.Date)
 		if log != nil {
 			upd := map[string]interface{}{}
 			upd["permission_request_id"] = id
-			
+
 			if perm.PermissionType == "late_arrival" && log.Status == string(model.AttendanceLate) {
 				upd["status"] = model.AttendancePresent
 				upd["late_minutes"] = 0
@@ -154,16 +140,4 @@ func (s *permissionRequestService) Delete(ctx context.Context, id uint) error {
 		return fmt.Errorf("cannot delete processed permission request")
 	}
 	return s.repo.Delete(ctx, nil, id)
-}
-
-func parseTimeStringForReq(t string, date string) (time.Time, error) {
-	combined := fmt.Sprintf("%s %s", date, t)
-	parsed, err := time.ParseInLocation("2006-01-02 15:04:05", combined, time.Local)
-	if err != nil {
-		parsed, err = time.ParseInLocation("2006-01-02 15:04", combined[:len(date)+6], time.Local)
-		if err != nil {
-			return time.Time{}, err
-		}
-	}
-	return parsed, nil
 }

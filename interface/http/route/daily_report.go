@@ -21,6 +21,7 @@ func DailyReportRoutes(app *fiber.App, db *gorm.DB) {
 		reports.Get("/", middleware.RBACMiddleware(data.PERM_DailyReportRead), h.List)
 		reports.Get("/:id", middleware.RBACMiddleware(data.PERM_DailyReportRead), h.Detail)
 		reports.Post("/", middleware.RBACMiddleware(data.PERM_DailyReportCreate), h.Create)
+		reports.Put("/:id", middleware.RBACMiddleware(data.PERM_DailyReportCreate), h.Update)
 		reports.Delete("/:id", middleware.RBACMiddleware(data.PERM_DailyReportDelete), h.Delete)
 	}
 }
