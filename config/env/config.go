@@ -22,7 +22,8 @@ type (
 	}
 
 	Redis struct {
-		Address  string `env:"REDIS_ADDRESS"`
+		Host     string `env:"REDIS_HOST"`
+		Port     string `env:"REDIS_PORT"`
 		Password string `env:"REDIS_PASSWORD"`
 		DB       string `env:"REDIS_DB"`
 	}
@@ -32,6 +33,7 @@ type (
 		Port      string `env:"MINIO_PORT"`
 		AccessKey string `env:"MINIO_ROOT_USER"`
 		SecretKey string `env:"MINIO_ROOT_PASSWORD"`
+		PublicURL string `env:"MINIO_PUBLIC_URL"`
 	}
 
 	Config struct {
@@ -73,18 +75,16 @@ func LoadNative() ([]string, error) {
 	lookupEnv("DB_NAME", &Cfg.Database.DBName, &missing)
 	lookupEnv("DB_PASSWORD", &Cfg.Database.DBPassword, &missing)
 
-	lookupEnv("REDIS_ADDRESS", &Cfg.Redis.Address, &missing)
-	Cfg.Redis.Password, _ = os.LookupEnv("REDIS_PASSWORD")
-	Cfg.Redis.DB, _ = os.LookupEnv("REDIS_DB")
+	lookupEnv("REDIS_HOST", &Cfg.Redis.Host, &missing)
+	lookupEnv("REDIS_PORT", &Cfg.Redis.Port, &missing)
+	lookupEnv("REDIS_PASSWORD", &Cfg.Redis.Password, &missing)
+	lookupEnv("REDIS_DB", &Cfg.Redis.DB, &missing)
 
 	lookupEnv("MINIO_HOST", &Cfg.Minio.Host, &missing)
+	lookupEnv("MINIO_PORT", &Cfg.Minio.Port, &missing)
 	lookupEnv("MINIO_ROOT_USER", &Cfg.Minio.AccessKey, &missing)
 	lookupEnv("MINIO_ROOT_PASSWORD", &Cfg.Minio.SecretKey, &missing)
-	if port, ok := os.LookupEnv("MINIO_PORT"); ok {
-		Cfg.Minio.Port = port
-	} else {
-		Cfg.Minio.Port = "9000"
-	}
+	lookupEnv("MINIO_PUBLIC_URL", &Cfg.Minio.PublicURL, &missing)
 
 	return missing, nil
 }

@@ -92,7 +92,8 @@ func main() {
 	// ── Redis ──────────────────────────────────────────────────────
 	startTime = time.Now()
 	redisClient, err := redisSetup.NewRedisClient(redisSetup.RedisConfig{
-		Address:  env.Cfg.Redis.Address,
+		Host:     env.Cfg.Redis.Host,
+		Port:     env.Cfg.Redis.Port,
 		Password: env.Cfg.Redis.Password,
 		DB:       redisSetup.ParseRedisDB(env.Cfg.Redis.DB),
 	})

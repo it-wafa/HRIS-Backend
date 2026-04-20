@@ -2,6 +2,7 @@ package cache
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 
 	logger "hris-backend/config/log"
@@ -11,15 +12,21 @@ import (
 
 // RedisConfig holds the Redis connection parameters.
 type RedisConfig struct {
-	Address  string
+	Host     string
+	Port     string
 	Password string
 	DB       int
 }
 
 // NewRedisClient creates and pings a new Redis client.
 func NewRedisClient(cfg RedisConfig) (*redis.Client, error) {
+	endpoint := cfg.Host
+	if cfg.Port != "" {
+		endpoint = fmt.Sprintf("%s:%s", cfg.Host, cfg.Port)
+	}
+
 	client := redis.NewClient(&redis.Options{
-		Addr:     cfg.Address,
+		Addr:     endpoint,
 		Password: cfg.Password,
 		DB:       cfg.DB,
 	})
@@ -30,7 +37,7 @@ func NewRedisClient(cfg RedisConfig) (*redis.Client, error) {
 
 	logger.Info("redis_connected", map[string]any{
 		"service": "cache",
-		"address": cfg.Address,
+		"address": endpoint,
 		"db":      cfg.DB,
 	})
 

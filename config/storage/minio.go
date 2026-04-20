@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"strings"
 	"time"
 
 	"hris-backend/config/env"
@@ -32,7 +33,9 @@ type MinioClient interface {
 }
 
 type minioClient struct {
-	client *minio.Client
+	client         *minio.Client
+	internalOrigin string
+	publicOrigin   string
 }
 
 // NewMinioClient membuat koneksi ke MinIO server menggunakan config env
@@ -50,7 +53,11 @@ func NewMinioClient(cfg env.Minio) (MinioClient, error) {
 		return nil, fmt.Errorf("minio: failed to create client: %w", err)
 	}
 
-	return &minioClient{client: client}, nil
+	return &minioClient{
+		client:         client,
+		internalOrigin: endpoint,
+		publicOrigin:   cfg.PublicURL,
+	}, nil
 }
 
 // EnsureBuckets buat bucket saat startup jika belum ada, dan set policy private
@@ -84,12 +91,19 @@ func (m *minioClient) EnsureBuckets(ctx context.Context) error {
 	return nil
 }
 
+func (m *minioClient) toPublicURL(u *url.URL) string {
+	if m.publicOrigin == "" {
+		return u.String()
+	}
+	return strings.Replace(u.String(), m.internalOrigin, m.publicOrigin, 1)
+}
+
 func (m *minioClient) PresignedPutObject(ctx context.Context, bucket, object string, expiry time.Duration) (string, error) {
 	u, err := m.client.PresignedPutObject(ctx, bucket, object, expiry)
 	if err != nil {
 		return "", fmt.Errorf("minio: presigned put %s/%s: %w", bucket, object, err)
 	}
-	return u.String(), nil
+	return m.toPublicURL(u), nil
 }
 
 func (m *minioClient) PresignedGetObject(ctx context.Context, bucket, object string, expiry time.Duration) (string, error) {
@@ -97,5 +111,5 @@ func (m *minioClient) PresignedGetObject(ctx context.Context, bucket, object str
 	if err != nil {
 		return "", fmt.Errorf("minio: presigned get %s/%s: %w", bucket, object, err)
 	}
-	return u.String(), nil
+	return m.toPublicURL(u), nil
 }
