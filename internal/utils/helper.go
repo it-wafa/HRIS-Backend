@@ -105,15 +105,37 @@ func HaversineDistance(lat1, lon1, lat2, lon2 float64) float64 {
 
 // parseTimeString parse "HH:MM:SS" menjadi time.Time di tanggal yang diberikan
 func ParseTimeString(t string, date string) (time.Time, error) {
+	if t == "" {
+		return time.Time{}, fmt.Errorf("parseTimeString: time string tidak boleh kosong")
+	}
+
+	// Jika t sudah berupa datetime lengkap, parse langsung tanpa menggabungkan date
+	fullFormats := []string{
+		"2006-01-02 15:04:05",
+		"2006-01-02 15:04",
+		"2006-01-02T15:04:05Z07:00",
+		"2006-01-02T15:04:05",
+		"2006-01-02T15:04",
+	}
+	for _, layout := range fullFormats {
+		if parsed, err := time.ParseInLocation(layout, t, time.Local); err == nil {
+			return parsed, nil
+		}
+	}
+
+	// Jika t hanya berisi waktu, gabungkan dengan date
+	timeOnlyFormats := []string{
+		"15:04:05",
+		"15:04",
+	}
 	combined := fmt.Sprintf("%s %s", date, t)
-	if parsed, err := time.ParseInLocation("2006-01-02 15:04:05", combined, time.Local); err == nil {
-		return parsed, nil
+	for _, layout := range timeOnlyFormats {
+		if parsed, err := time.ParseInLocation("2006-01-02 "+layout, combined, time.Local); err == nil {
+			return parsed, nil
+		}
 	}
-	shortCombined := fmt.Sprintf("%s %s", date, t)
-	if parsed, err := time.ParseInLocation("2006-01-02 15:04", shortCombined, time.Local); err == nil {
-		return parsed, nil
-	}
-	return time.Time{}, fmt.Errorf("parseTimeString: format tidak dikenali untuk %q", t)
+
+	return time.Time{}, fmt.Errorf("parseTimeString: format tidak dikenali untuk %q (date: %q)", t, date)
 }
 
 // UploadToPresignedURL performs an HTTP PUT to a presigned MinIO URL with the given data.
