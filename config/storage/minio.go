@@ -47,15 +47,21 @@ func NewMinioClient(cfg env.Minio) (MinioClient, error) {
 
 	client, err := minio.New(endpoint, &minio.Options{
 		Creds:  credentials.NewStaticV4(cfg.AccessKey, cfg.SecretKey, ""),
-		Secure: false, // set true jika MinIO di-proxy dengan HTTPS/TLS
+		Secure: cfg.Secure,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("minio: failed to create client: %w", err)
 	}
 
+	scheme := "http"
+	if cfg.Secure {
+		scheme = "https"
+	}
+	internalOrigin := fmt.Sprintf("%s://%s", scheme, endpoint)
+
 	return &minioClient{
 		client:         client,
-		internalOrigin: endpoint,
+		internalOrigin: internalOrigin,
 		publicOrigin:   cfg.PublicURL,
 	}, nil
 }

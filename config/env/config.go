@@ -31,6 +31,7 @@ type (
 	Minio struct {
 		Host      string `env:"MINIO_HOST"`
 		Port      string `env:"MINIO_PORT"`
+		Secure    bool   `env:"MINIO_SECURE"`
 		AccessKey string `env:"MINIO_ROOT_USER"`
 		SecretKey string `env:"MINIO_ROOT_PASSWORD"`
 		PublicURL string `env:"MINIO_PUBLIC_URL"`
@@ -82,6 +83,11 @@ func LoadNative() ([]string, error) {
 
 	lookupEnv("MINIO_HOST", &Cfg.Minio.Host, &missing)
 	lookupEnv("MINIO_PORT", &Cfg.Minio.Port, &missing)
+	if val, ok := os.LookupEnv("MINIO_SECURE"); ok {
+		Cfg.Minio.Secure = val == "true"
+	} else {
+		Cfg.Minio.Secure = false
+	}
 	lookupEnv("MINIO_ROOT_USER", &Cfg.Minio.AccessKey, &missing)
 	lookupEnv("MINIO_ROOT_PASSWORD", &Cfg.Minio.SecretKey, &missing)
 	lookupEnv("MINIO_PUBLIC_URL", &Cfg.Minio.PublicURL, &missing)
