@@ -15,6 +15,8 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+var wib = time.FixedZone("WIB", 7*60*60)
+
 func Ms(d time.Duration) float64 {
 	return float64(d.Nanoseconds()) / 1e6
 }
@@ -53,7 +55,7 @@ func ParseDate(s string) (time.Time, error) {
 	for _, layout := range data.DateFormats {
 		t, err := time.Parse(layout, s)
 		if err == nil {
-			return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.UTC), nil
+			return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, wib), nil
 		}
 	}
 	return time.Time{}, fmt.Errorf("parseDate: format tidak dikenali untuk %q", s)
@@ -86,8 +88,6 @@ func GenerateEmail(name string) string {
 	name = reg.ReplaceAllString(name, "")
 	return fmt.Sprintf("%s@wafa.id", name)
 }
-
-var wib = time.FixedZone("WIB", 7*60*60)
 
 func NowWIB() time.Time {
 	return time.Now().In(wib)
@@ -124,7 +124,7 @@ func ParseTimeString(t string, date string) (time.Time, error) {
 		"2006-01-02T15:04",
 	}
 	for _, layout := range fullFormats {
-		if parsed, err := time.ParseInLocation(layout, t, time.Local); err == nil {
+		if parsed, err := time.ParseInLocation(layout, t, wib); err == nil {
 			return parsed, nil
 		}
 	}
@@ -136,7 +136,7 @@ func ParseTimeString(t string, date string) (time.Time, error) {
 	}
 	combined := fmt.Sprintf("%s %s", date, t)
 	for _, layout := range timeOnlyFormats {
-		if parsed, err := time.ParseInLocation("2006-01-02 "+layout, combined, time.Local); err == nil {
+		if parsed, err := time.ParseInLocation("2006-01-02 "+layout, combined, wib); err == nil {
 			return parsed, nil
 		}
 	}

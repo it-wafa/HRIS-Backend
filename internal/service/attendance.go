@@ -624,7 +624,36 @@ func (s *attendanceService) UpdateOverrideStatus(ctx context.Context, employeeID
 	}
 
 	if model.RequestStatusEnum(req.Status) == model.RequestStatusApproved {
+		// Fetch attendance log untuk mendapat employee_id dan attendance_date
+		attendanceLog, err := s.repo.GetLogByID(ctx, tx, ov.AttendanceLogID)
+		if err != nil || attendanceLog == nil {
+			return dto.AttendanceOverrideResponse{}, fmt.Errorf("get attendance log: %w", err)
+		}
+		log.Debug("Attendance Log fetched", map[string]any{
+			"id":          attendanceLog.ID,
+			"employee_id": attendanceLog.EmployeeID,
+			"date":        attendanceLog.AttendanceDate,
+			"status":      attendanceLog.Status,
+		})
+
 		logUpds := make(map[string]interface{})
+
+		// Tentukan effective clock in/out (corrected jika ada, fallback ke original)
+		effectiveClockIn := ov.CorrectedClockIn
+		if effectiveClockIn == nil {
+			effectiveClockIn = ov.OriginalClockIn
+		}
+		effectiveClockOut := ov.CorrectedClockOut
+		if effectiveClockOut == nil {
+			effectiveClockOut = ov.OriginalClockOut
+		}
+		log.Debug("Clock in & Clock out", map[string]any{
+			"effective_clock_in":  effectiveClockIn,
+			"effective_clock_out": effectiveClockOut,
+			"ov_corrected_in":     ov.CorrectedClockIn,
+			"ov_corrected_out":    ov.CorrectedClockOut,
+		})
+		// Terapkan corrected values ke log
 		if ov.CorrectedClockIn != nil {
 			logUpds["clock_in_at"] = ov.CorrectedClockIn
 		}
@@ -632,6 +661,129 @@ func (s *attendanceService) UpdateOverrideStatus(ctx context.Context, employeeID
 			logUpds["clock_out_at"] = ov.CorrectedClockOut
 		}
 		logUpds["updated_at"] = time.Now()
+
+		// Ambil shift untuk recalculate late/early minutes
+		shift, err := s.repo.GetActiveSchedule(ctx, nil, attendanceLog.EmployeeID, attendanceLog.AttendanceDate)
+		log.Debug("Shift found", map[string]any{
+			"shift":      shift,
+			"err":        err,
+			"isFlexible": shift != nil && shift.IsFlexible,
+		})
+		if err == nil && shift != nil && !shift.IsFlexible {
+			newStatus := model.AttendanceStatusEnum(attendanceLog.Status)
+
+			// Jangan ubah status business_trip
+			isBusinessTrip := newStatus == model.AttendanceBusinessTrip
+
+			// --- Recalculate late minutes dari clock_in ---
+			if effectiveClockIn != nil && shift.ClockInEnd != nil {
+				clockInEnd, parseErr := utils.ParseTimeString(*shift.ClockInEnd, attendanceLog.AttendanceDate)
+				if parseErr == nil {
+					if effectiveClockIn.After(clockInEnd) {
+						lateMinutes := int(effectiveClockIn.Sub(clockInEnd).Minutes())
+						logUpds["late_minutes"] = lateMinutes
+
+						if !isBusinessTrip {
+							latePerm, _ := s.repo.GetApprovedPermission(ctx, nil, attendanceLog.EmployeeID, attendanceLog.AttendanceDate, "late_arrival")
+							if latePerm != nil {
+								newStatus = model.AttendancePresent
+							} else {
+								newStatus = model.AttendanceLate
+							}
+						}
+
+						log.Debug("Late minutes recalculation", map[string]any{
+							"clockInEnd":       clockInEnd,
+							"effectiveClockIn": effectiveClockIn,
+							"lateMinutes":      lateMinutes,
+							"newStatus":        newStatus,
+						})
+					} else {
+						// Clock in sudah tidak terlambat setelah koreksi
+						logUpds["late_minutes"] = 0
+						if !isBusinessTrip && newStatus == model.AttendanceLate {
+							newStatus = model.AttendancePresent
+						}
+						log.Debug("Late minutes reset", map[string]any{
+							"clockInEnd":       clockInEnd,
+							"effectiveClockIn": effectiveClockIn,
+							"newStatus":        newStatus,
+						})
+					}
+				}
+			}
+
+			// --- Recalculate early leave minutes & overtime dari clock_out ---
+			if effectiveClockOut != nil {
+				if shift.ClockOutStart != nil {
+					clockOutStart, parseErr := utils.ParseTimeString(*shift.ClockOutStart, attendanceLog.AttendanceDate)
+					if parseErr == nil {
+						if effectiveClockOut.Before(clockOutStart) {
+							earlyLeaveMinutes := int(clockOutStart.Sub(*effectiveClockOut).Minutes())
+							logUpds["early_leave_minutes"] = earlyLeaveMinutes
+
+							if !isBusinessTrip {
+								earlyPerm, _ := s.repo.GetApprovedPermission(ctx, nil, attendanceLog.EmployeeID, attendanceLog.AttendanceDate, "early_leave")
+								if earlyPerm != nil {
+									// Ada izin → tidak ubah ke half_day
+								} else {
+									newStatus = model.AttendanceHalfDay
+								}
+							}
+							log.Debug("Early leave recalculation", map[string]any{
+								"clockOutStart":     clockOutStart,
+								"effectiveClockOut": effectiveClockOut,
+								"earlyLeaveMinutes": earlyLeaveMinutes,
+								"newStatus":         newStatus,
+							})
+						} else {
+							logUpds["early_leave_minutes"] = 0
+							if !isBusinessTrip && newStatus == model.AttendanceHalfDay {
+								newStatus = model.AttendancePresent
+							}
+							log.Debug("Early leave reset", map[string]any{
+								"clockOutStart":     clockOutStart,
+								"effectiveClockOut": effectiveClockOut,
+								"newStatus":         newStatus,
+							})
+						}
+					}
+				}
+
+				if shift.ClockOutEnd != nil {
+					clockOutEnd, parseErr := utils.ParseTimeString(*shift.ClockOutEnd, attendanceLog.AttendanceDate)
+					if parseErr == nil {
+						if effectiveClockOut.After(clockOutEnd) {
+							overtimeMinutes := int(effectiveClockOut.Sub(clockOutEnd).Minutes())
+							logUpds["overtime_minutes"] = overtimeMinutes
+							log.Debug("Overtime recalculation", map[string]any{
+								"clockOutEnd":       clockOutEnd,
+								"effectiveClockOut": effectiveClockOut,
+								"overtimeMinutes":   overtimeMinutes,
+							})
+						} else {
+							logUpds["overtime_minutes"] = 0
+							log.Debug("Overtime reset", map[string]any{
+								"clockOutEnd":       clockOutEnd,
+								"effectiveClockOut": effectiveClockOut,
+							})
+						}
+					}
+				}
+			}
+
+			if !isBusinessTrip {
+				logUpds["status"] = newStatus
+			}
+			log.Debug("Final New Status", map[string]any{
+				"newStatus":      newStatus,
+				"isBusinessTrip": isBusinessTrip,
+			})
+		}
+
+		log.Debug("Final Log Updates", map[string]any{
+			"logUpds": logUpds,
+		})
 
 		if err := s.repo.UpdateLog(ctx, tx, ov.AttendanceLogID, logUpds); err != nil {
 			return dto.AttendanceOverrideResponse{}, fmt.Errorf("syncing corrected values: %w", err)
