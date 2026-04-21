@@ -352,6 +352,11 @@ func (s *attendanceService) ClockOut(ctx context.Context, employeeID uint, req d
 		return dto.AttendanceLogResponse{}, fmt.Errorf("check early leave permission: %w", err)
 	}
 
+	isOvertimeExist, err := s.repo.GetApprovedOvertime(ctx, nil, employeeID, today)
+	if err != nil {
+		return dto.AttendanceLogResponse{}, fmt.Errorf("check overtime permission: %w", err)
+	}
+
 	if shift != nil && !shift.IsFlexible {
 		if shift.ClockOutStart != nil {
 			clockOutStart, parseErr := utils.ParseTimeString(*shift.ClockOutStart, today)
@@ -367,9 +372,11 @@ func (s *attendanceService) ClockOut(ctx context.Context, employeeID uint, req d
 		}
 
 		if shift.ClockOutEnd != nil {
-			clockOutEnd, parseErr := utils.ParseTimeString(*shift.ClockOutEnd, today)
-			if parseErr == nil && now.After(clockOutEnd) {
-				overtimeMinutes = int(now.Sub(clockOutEnd).Minutes())
+			if isOvertimeExist {
+				clockOutEnd, parseErr := utils.ParseTimeString(*shift.ClockOutEnd, today)
+				if parseErr == nil && now.After(clockOutEnd) {
+					overtimeMinutes = int(now.Sub(clockOutEnd).Minutes())
+				}
 			}
 		}
 	}
@@ -649,11 +656,11 @@ func (s *attendanceService) UpdateOverrideStatus(ctx context.Context, employeeID
 		}
 		// Force fix timezone from UTC to WIB
 		if effectiveClockIn != nil {
-			fixTZ := effectiveClockIn.Add(-7*time.Hour)
+			fixTZ := effectiveClockIn.Add(-7 * time.Hour)
 			effectiveClockIn = &fixTZ
 		}
 		if effectiveClockOut != nil {
-			fixTZ := effectiveClockOut.Add(-7*time.Hour)
+			fixTZ := effectiveClockOut.Add(-7 * time.Hour)
 			effectiveClockOut = &fixTZ
 		}
 		log.Debug("Clock in & Clock out", map[string]any{
